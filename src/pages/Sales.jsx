@@ -387,7 +387,13 @@ const Sales = () => {
 
                 {/* Filter Pills */}
                 <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                    {['all', 'Venda', 'PGO', 'PAGO', 'PENDENTE'].map(type => (
+                    {['all', 'Venda', 'PGO', 'PAGO', 'PENDENTE']
+                        .filter(type => {
+                            if (activeModule === 'vendas' && type === 'PGO') return false;
+                            if (activeModule === 'pgos' && (type === 'Venda' || type === 'PAGO' || type === 'PENDENTE')) return false;
+                            return true;
+                        })
+                        .map(type => (
                         <button
                             key={type}
                             onClick={() => setFilterType(type)}
