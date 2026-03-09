@@ -363,13 +363,9 @@ const SalesForm = ({ saleToEdit, onClose, defaultClient }) => {
                                 onChange={(e) => handleChange('parcelas', e.target.value)}
                                 className={inputClass}
                             >
-                                <option value="2x">2x</option>
-                                <option value="3x">3x</option>
-                                <option value="4x">4x</option>
-                                <option value="5x">5x</option>
-                                <option value="6x">6x</option>
-                                <option value="10x">10x</option>
-                                <option value="12x">12x</option>
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+                                    <option key={n} value={`${n}x`}>{n}x</option>
+                                ))}
                             </select>
                         </div>
                     )}
