@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
     apiKey: "AIzaSyB06sQzC0eA-QuQfTW_VFMg-E7PqKij_e0",
@@ -21,9 +22,11 @@ try {
             tabManager: persistentMultipleTabManager()
         })
     });
-} catch (e) {
+} catch {
     // Fallback if already initialized
     db = getFirestore(app);
 }
 
-export { db };
+const storage = getStorage(app);
+
+export { db, storage };

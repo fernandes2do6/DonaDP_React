@@ -1,18 +1,10 @@
 {
     "recommendations": [
-        "antigravity.browser-extension",
-        "googlecloudtools.cloudcode",
         "bradlc.vscode-tailwindcss",
-        "Dart-Code.flutter",
-        "Dart-Code.dart-code",
         "naumovs.color-highlight",
-        "kisstkondoros.vscode-gutter-preview",
-        "usernamehw.errorlens",
-        "Prisma.prisma",
-        "rangav.vscode-thunder-client",
-        "wix.vscode-import-cost",
-        "eamodio.gitlens",
+        "googlecloudtools.cloudcode",
         "esbenp.prettier-vscode",
-        "Gruntfuggly.todo-tree"
+        "usernamehw.errorlens",
+        "wix.vscode-import-cost"
     ]
 }

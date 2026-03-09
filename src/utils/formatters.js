@@ -6,7 +6,8 @@ export const parseCurrency = (value) => {
 };
 
 export const formatCurrency = (value) => {
-    return parseFloat(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const num = parseCurrency(value);
+    return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
 export const formatDateForInput = (dateString) => {
@@ -27,4 +28,10 @@ export const formatDateForDisplay = (dateStringIso) => {
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
     return dateStringIso;
+};
+
+export const getLocalISODate = () => {
+    // Returns local YYYY-MM-DD instead of UTC
+    const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+    return (new Date(Date.now() - tzoffset)).toISOString().split('T')[0];
 };

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useData } from '../contexts/DataContext';
-import { formatCurrency, parseCurrency } from '../utils/formatters';
-import { CloudArrowUp, ArrowDown, ArrowUp, Wallet, ArrowRight, Funnel } from 'phosphor-react';
-import { doc, deleteDoc, updateDoc, writeBatch, collection, getDocs, where, query } from 'firebase/firestore';
+import { formatCurrency, parseCurrency, getLocalISODate } from '../utils/formatters';
+import { CloudArrowUp, ArrowDown, ArrowUp } from 'phosphor-react';
+import { doc, updateDoc, writeBatch, collection } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import GlassCard from '../components/GlassCard';
 
@@ -11,7 +11,7 @@ const Finance = () => {
 
     // Filters
     const [tipoFilter, setTipoFilter] = useState('all');   // all | Receita | Despesa
-    const [statusFilter, setStatusFilter] = useState('all');
+    const [statusFilter] = useState('all');
     const [periodo, setPeriodo] = useState(() => {
         const today = new Date();
         return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -78,13 +78,6 @@ const Finance = () => {
         } catch (e) { alert('Erro: ' + e.message); }
     };
 
-    const handleDelete = async (id, e) => {
-        e.stopPropagation();
-        if (window.confirm("Apagar registro?")) {
-            await deleteDoc(doc(db, 'financeiro', id));
-        }
-    };
-
     const handleSync = async () => {
         if (!window.confirm("Sincronizar financeiro com vendas? Isso criará registros faltantes.")) return;
         try {
@@ -103,7 +96,7 @@ const Finance = () => {
                             vencimento = `${parts[2]}-${parts[1]}-${parts[0]}`;
                         }
                     }
-                    vencimento = vencimento || new Date().toISOString().split('T')[0];
+                    vencimento = vencimento || getLocalISODate();
 
                     const ref = doc(collection(db, "financeiro"));
                     batch.set(ref, {
@@ -150,18 +143,18 @@ const Finance = () => {
 
             {/* Summary Cards (Horizontal Scroll) */}
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar snap-x">
-                <GlassCard className="min-w-[140px] flex-shrink-0 snap-start bg-gradient-to-br from-brand-purple/20 to-brand-purple/5 border-brand-purple/20">
+                <GlassCard className="min-w-[140px] shrink-0 snap-start bg-linear-to-br from-brand-purple/20 to-brand-purple/5 border-brand-purple/20">
                     <p className="text-[10px] text-dark-muted mb-1">Saldo</p>
                     <p className="text-lg font-bold text-white">{formatCurrency(saldo)}</p>
                 </GlassCard>
-                <GlassCard className="min-w-[140px] flex-shrink-0 snap-start">
+                <GlassCard className="min-w-[140px] shrink-0 snap-start">
                     <div className="flex items-center gap-1 mb-1">
                         <ArrowUp size={12} className="text-brand-green" weight="bold" />
                         <p className="text-[10px] text-dark-muted">Receitas</p>
                     </div>
                     <p className="text-lg font-bold text-brand-green">{formatCurrency(totalReceitas)}</p>
                 </GlassCard>
-                <GlassCard className="min-w-[140px] flex-shrink-0 snap-start">
+                <GlassCard className="min-w-[140px] shrink-0 snap-start">
                     <div className="flex items-center gap-1 mb-1">
                         <ArrowDown size={12} className="text-brand-pink" weight="bold" />
                         <p className="text-[10px] text-dark-muted">Despesas</p>
@@ -191,7 +184,7 @@ const Finance = () => {
                 {filteredItems.map(item => (
                     <GlassCard
                         key={item.id}
-                        className={`relative !p-3 border flex justify-between items-center ${item.status === 'Pago' ? 'opacity-60 grayscale-[0.5]' : ''
+                        className={`relative p-3! border flex justify-between items-center ${item.status === 'Pago' ? 'opacity-60 grayscale-[0.5]' : ''
                             } border-white/5 active:scale-[0.99] transition-transform`}
                         onClick={() => handleToggleStatus(item)}
                     >

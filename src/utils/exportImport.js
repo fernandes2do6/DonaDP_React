@@ -1,6 +1,6 @@
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { parseCurrency } from './formatters';
+import { parseCurrency, getLocalISODate } from './formatters';
 import Papa from 'papaparse';
 
 // --- EXPORT CONFIG ---
@@ -18,9 +18,12 @@ const EXPORT_COLUMNS = {
         { header: 'Custo', key: 'custo' },
         { header: 'Data', key: 'data' },
         { header: 'Previsão Pgto', key: 'dataPagamento' },
+        { header: 'Previsão Entrega', key: 'dataEntrega' },
         { header: 'Forma de Pagamento', key: 'formaPagamento' },
+        { header: 'Parcelas', key: 'parcelas' },
         { header: 'Marca', key: 'marca' },
-        { header: 'Tipo', key: 'tipo' }
+        { header: 'Tipo', key: 'tipo' },
+        { header: 'PGO (Vínculo)', key: 'pgoId' }
     ]
 };
 
@@ -133,10 +136,13 @@ export const processImport = (file, type) => {
                     { target: 'custo', aliases: ['custo', 'custofabrica', 'despesa', 'cost', 'valordecusto'] },
                     { target: 'data', aliases: ['data', 'dia', 'date', 'emissao', 'datavenda'] },
                     { target: 'dataPagamento', aliases: ['previsaopgto', 'datapagamento', 'vencimento', 'pagoem', 'previsao'] },
+                    { target: 'dataEntrega', aliases: ['previsaoentrega', 'entrega', 'dataentrega'] },
                     { target: 'produtoDesc', aliases: ['produto', 'produtodesc', 'desc', 'descricao', 'item'] },
                     { target: 'tipo', aliases: ['tipo', 'tipodevenda', 'type'] },
                     { target: 'marca', aliases: ['marca', 'fabricante', 'brand'] },
                     { target: 'formaPagamento', aliases: ['formapagamento', 'forma', 'payment', 'meiopagamento'] },
+                    { target: 'parcelas', aliases: ['parcelas', 'qtdeparcelas', 'veze'] },
+                    { target: 'pgoId', aliases: ['pgoid', 'pgo', 'vinculo', 'vinculopgo'] },
                 ];
 
                 const definitions = type === 'vendas' ? vendasDefinitions : clienteDefinitions;
@@ -228,7 +234,25 @@ export const processImport = (file, type) => {
                             } else {
                                 // Default payment date: today (encoded for input compatibility usually YYYY-MM-DD in state, 
                                 // but here we follow DB format which seems split between DD/MM/YYYY and ISO depending on field)
-                                dbObj['dataPagamento'] = new Date().toISOString().split('T')[0];
+                                dbObj['dataPagamento'] = getLocalISODate();
+                            }
+
+                            if (dbKeyMap['dataEntrega']) {
+                                dbObj['dataEntrega'] = row[dbKeyMap['dataEntrega']];
+                            } else {
+                                dbObj['dataEntrega'] = '';
+                            }
+
+                            if (dbKeyMap['parcelas']) {
+                                dbObj['parcelas'] = row[dbKeyMap['parcelas']];
+                            } else {
+                                dbObj['parcelas'] = '1x';
+                            }
+
+                            if (dbKeyMap['pgoId']) {
+                                dbObj['pgoId'] = row[dbKeyMap['pgoId']];
+                            } else {
+                                dbObj['pgoId'] = '';
                             }
 
                             // Timestamp is required for the vendas query (orderBy timestamp)
@@ -236,6 +260,8 @@ export const processImport = (file, type) => {
                         }
 
                         // Insert to Firebase
+                        // Do NOT insert `id` directly if it comes from CSV
+                        if (dbObj.id) delete dbObj.id; // Ensure clean insert
                         const salesRef = await addDoc(collection(db, type === 'vendas' ? "vendas" : "clientes"), dbObj);
 
                         // IF Vendas, generate Financeiro record

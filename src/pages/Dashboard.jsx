@@ -1,42 +1,124 @@
+import { useState } from 'react';
 import { useData } from '../contexts/DataContext';
-import { parseCurrency, formatCurrency } from '../utils/formatters';
+import { parseCurrency, formatCurrency, getLocalISODate } from '../utils/formatters';
 import { CloudArrowUp, TrendUp, TrendDown, Wallet, CoinVertical, WhatsappLogo } from 'phosphor-react';
 import BrandPieChart from '../components/BrandPieChart';
 import GlassCard from '../components/GlassCard';
 
+const PaymentCard = ({ payment, indicatorColor = "bg-brand-purple" }) => {
+    return (
+        <GlassCard className="!p-3 border-white/5 flex items-center justify-between group hover:border-brand-purple/20 transition-all">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className={`w-10 h-10 rounded-full ${indicatorColor}/10 flex items-center justify-center text-white font-bold border border-white/10 flex-shrink-0`}>
+                    {payment.cliente?.charAt(0).toUpperCase() || '?'}
+                </div>
+                <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{payment.cliente || 'Sem cliente'}</p>
+                    <p className="text-[10px] text-dark-muted truncate">{payment.produtoDesc || 'Produto diverso'}</p>
+                    <p className="text-[10px] text-dark-muted">
+                        Vencimento: {payment.dataPagamento ? payment.dataPagamento.split('-').reverse().join('/') : '—'}
+                    </p>
+                </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="text-right">
+                    <p className="text-sm font-bold text-white">{formatCurrency(payment.total)}</p>
+                    <div className="flex items-center justify-end gap-1">
+                        <div className={`w-1.5 h-1.5 rounded-full ${indicatorColor} animate-pulse`} />
+                        <p className="text-[10px] text-dark-muted uppercase font-medium">Pendente</p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => {
+                        if (payment.whatsapp) {
+                            const phone = payment.whatsapp.replace(/\D/g, '');
+                            const msg = encodeURIComponent(`Olá ${payment.cliente}! 😊\nGostaria de lembrar sobre o pagamento pendente de *${formatCurrency(payment.total)}* referente a: ${payment.produtoDesc || 'sua compra'}.\nAguardo retorno, obrigada! 💜`);
+                            window.open(`https://wa.me/55${phone}?text=${msg}`, '_blank');
+                        } else {
+                            alert(`O cliente "${payment.cliente}" não possui WhatsApp cadastrado.\nCadastre na aba Clientes.`);
+                        }
+                    }}
+                    className={`p-2.5 rounded-xl active:scale-90 transition-all border ${payment.whatsapp
+                        ? 'bg-brand-green/10 text-brand-green hover:bg-brand-green/20 border-brand-green/20'
+                        : 'bg-dark-surface text-dark-muted border-dark-border hover:text-brand-green hover:border-brand-green/20'
+                        }`}
+                    title={payment.whatsapp ? 'Cobrar via WhatsApp' : 'Sem WhatsApp cadastrado'}
+                >
+                    <WhatsappLogo size={20} weight="fill" />
+                </button>
+            </div>
+        </GlassCard>
+    );
+};
+
+const DeliveryCard = ({ delivery }) => {
+    return (
+        <GlassCard className="!p-3 border-white/5 flex items-center justify-between group hover:border-brand-purple/20 transition-all">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-10 h-10 rounded-full bg-brand-green/10 flex items-center justify-center text-brand-green font-bold border border-brand-green/20 flex-shrink-0">
+                    {delivery.cliente?.charAt(0).toUpperCase() || '?'}
+                </div>
+                <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{delivery.cliente || 'Sem cliente'}</p>
+                    <p className="text-[10px] text-dark-muted truncate">{delivery.produtoDesc || 'Produto diverso'}</p>
+                    <p className="text-[10px] text-dark-muted">
+                        Entrega: {delivery.dataEntrega ? delivery.dataEntrega.split('-').reverse().join('/') : '—'}
+                    </p>
+                </div>
+            </div>
+            <div className="text-right flex-shrink-0">
+                <p className="text-sm font-bold text-white">{formatCurrency(delivery.total)}</p>
+                <p className="text-[10px] text-brand-green font-medium uppercase tracking-wider">Prevista para hoje</p>
+            </div>
+        </GlassCard>
+    );
+};
+
 const Dashboard = () => {
     const { vendas, clientes, loading } = useData();
+    const [selectedBrands, setSelectedBrands] = useState([]);
+
+    const handleBrandClick = (brand) => {
+        if (!brand) { setSelectedBrands([]); return; }
+        setSelectedBrands(prev => prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]);
+    };
 
     if (loading) return <div className="flex justify-center items-center h-full text-brand-purple animate-pulse">Carregando dados...</div>;
 
-    // --- CALCULATIONS (vendas-only) ---
-    const totalVendas = vendas.reduce((acc, curr) => acc + parseCurrency(curr.total), 0);
+    const todayISO = getLocalISODate();
 
-    const totalCusto = vendas.reduce((acc, curr) => {
+    // --- CALCULATIONS (vendas-only, filtered by brand) ---
+    const filteredVendas = selectedBrands.length > 0 ? vendas.filter(v => selectedBrands.includes(v.marca)) : vendas;
+
+    const totalVendas = filteredVendas.reduce((acc, curr) => acc + parseCurrency(curr.total), 0);
+
+    const totalCusto = filteredVendas.reduce((acc, curr) => {
         const cost = parseCurrency(curr.custo);
         return acc + (cost > 0 ? cost : 0);
     }, 0);
 
     // A Receber = soma de vendas não pagas
-    const vendasPendentes = vendas.filter(v => v.status !== 'Pago');
-    const aReceber = vendasPendentes.reduce((acc, v) => acc + parseCurrency(v.total), 0);
+    const unpaid = filteredVendas.filter(v => v.status !== 'Pago' && v.tipo !== 'PGO');
+    const aReceber = unpaid.reduce((acc, v) => acc + parseCurrency(v.total), 0);
 
     // A Pagar = custo total
     const aPagar = totalCusto;
 
     const saldoPrevisto = totalVendas - totalCusto;
 
-    // Pending Payments: vendas não pagas, com info do cliente e WhatsApp
-    const pendingPayments = vendasPendentes
-        .sort((a, b) => parseCurrency(b.total) - parseCurrency(a.total))
-        .slice(0, 10)
-        .map(v => {
-            const client = (clientes || []).find(c => c.nome && v.cliente && c.nome.toLowerCase() === v.cliente.toLowerCase());
-            return {
-                ...v,
-                whatsapp: client ? (client.whatsapp || client.telefone) : null
-            };
-        });
+    const brandLabel = selectedBrands.length > 0 ? ` (${selectedBrands.join(', ')})` : '';
+
+    const mapPaymentInfo = (v) => {
+        const client = (clientes || []).find(c => c.nome && v.cliente && c.nome.toLowerCase() === v.cliente.toLowerCase());
+        return {
+            ...v,
+            whatsapp: client ? (client.whatsapp || client.telefone) : null
+        };
+    };
+
+    const dueToday = unpaid.filter(v => v.dataPagamento === todayISO).map(mapPaymentInfo);
+    const overdue = unpaid.filter(v => v.dataPagamento < todayISO).map(mapPaymentInfo);
+    const deliveriesToday = filteredVendas.filter(v => v.dataEntrega === todayISO).map(mapPaymentInfo);
 
     const todayDate = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -76,7 +158,7 @@ const Dashboard = () => {
                         {formatCurrency(saldoPrevisto)}
                     </div>
                     <div className="text-sm text-dark-muted">
-                        Balanço Geral
+                        Balanço Geral{brandLabel}
                     </div>
                 </GlassCard>
 
@@ -85,7 +167,7 @@ const Dashboard = () => {
                     <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                         <TrendUp size={48} weight="fill" className="text-brand-green" />
                     </div>
-                    <p className="text-xs text-dark-muted mb-1">A Receber</p>
+                    <p className="text-xs text-dark-muted mb-1">A Receber{brandLabel}</p>
                     <p className="text-lg font-bold text-brand-green">{formatCurrency(aReceber)}</p>
                 </GlassCard>
 
@@ -94,7 +176,7 @@ const Dashboard = () => {
                     <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                         <TrendDown size={48} weight="fill" className="text-brand-pink" />
                     </div>
-                    <p className="text-xs text-dark-muted mb-1">A Pagar</p>
+                    <p className="text-xs text-dark-muted mb-1">A Pagar{brandLabel}</p>
                     <p className="text-lg font-bold text-brand-pink">{formatCurrency(aPagar)}</p>
                 </GlassCard>
 
@@ -104,89 +186,77 @@ const Dashboard = () => {
                         <CoinVertical className="text-brand-purple" size={18} />
                         Vendas por Marca
                     </h3>
-                    <BrandPieChart data={vendas} />
+                    <BrandPieChart data={vendas} onBrandClick={handleBrandClick} selectedBrands={selectedBrands} />
                 </GlassCard>
 
-                {/* Pending Payments Section */}
-                <div className="col-span-2 space-y-4">
-                    <h3 className="text-sm font-semibold flex items-center justify-between pl-1">
-                        <div className="flex items-center gap-2">
-                            <CoinVertical className="text-brand-pink" size={18} />
-                            Pagamentos Pendentes
-                        </div>
-                        <span className="text-[10px] bg-brand-pink/10 text-brand-pink px-2 py-0.5 rounded-full">
-                            Cobrança Ativa
-                        </span>
-                    </h3>
-                    <div className="space-y-3">
-                        {pendingPayments.map(payment => (
-                            <GlassCard key={payment.id} className="!p-3 border-white/5 flex items-center justify-between group hover:border-brand-purple/20 transition-all">
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                    <div className="w-10 h-10 rounded-full bg-brand-pink/10 flex items-center justify-center text-brand-pink font-bold border border-brand-pink/20 flex-shrink-0">
-                                        {payment.cliente?.charAt(0).toUpperCase() || '?'}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-semibold text-white truncate">{payment.cliente || 'Sem cliente'}</p>
-                                        <p className="text-[10px] text-dark-muted truncate">{payment.produtoDesc || 'Produto diverso'}</p>
-                                        <p className="text-[10px] text-dark-muted">{payment.data || payment.dataPagamento || ''}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                    <div className="text-right">
-                                        <p className="text-sm font-bold text-white">{formatCurrency(payment.total)}</p>
-                                        <div className="flex items-center justify-end gap-1">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-brand-pink animate-pulse" />
-                                            <p className="text-[10px] text-dark-muted uppercase font-medium">Pendente</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            if (payment.whatsapp) {
-                                                const phone = payment.whatsapp.replace(/\D/g, '');
-                                                const msg = encodeURIComponent(`Olá ${payment.cliente}! 😊\nGostaria de lembrar sobre o pagamento pendente de *${formatCurrency(payment.total)}* referente a: ${payment.produtoDesc || 'sua compra'}.\nAguardo retorno, obrigada! 💜`);
-                                                window.open(`https://wa.me/55${phone}?text=${msg}`, '_blank');
-                                            } else {
-                                                alert(`O cliente "${payment.cliente}" não possui WhatsApp cadastrado.\nCadastre na aba Clientes.`);
-                                            }
-                                        }}
-                                        className={`p-2.5 rounded-xl active:scale-90 transition-all border ${payment.whatsapp
-                                            ? 'bg-brand-green/10 text-brand-green hover:bg-brand-green/20 border-brand-green/20'
-                                            : 'bg-dark-surface text-dark-muted border-dark-border hover:text-brand-green hover:border-brand-green/20'
-                                            }`}
-                                        title={payment.whatsapp ? 'Cobrar via WhatsApp' : 'Sem WhatsApp cadastrado'}
-                                    >
-                                        <WhatsappLogo size={20} weight="fill" />
-                                    </button>
-                                </div>
-                            </GlassCard>
-                        ))}
-                        {pendingPayments.length === 0 && (
-                            <div className="text-center py-8 text-dark-muted text-sm border-2 border-dashed border-dark-border rounded-2xl bg-dark-surface/30">
-                                <p className="mb-1">🎉 Bom trabalho!</p>
-                                <p className="text-xs opacity-60">Nenhum pagamento pendente no momento.</p>
+                {/* Payments Columns */}
+                <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Vencem Hoje */}
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-semibold flex items-center justify-between pl-1">
+                            <div className="flex items-center gap-2 text-brand-purple">
+                                <TrendUp size={18} />
+                                Vencem Hoje
                             </div>
-                        )}
+                            <span className="text-[10px] bg-brand-purple/10 text-brand-purple px-2 py-0.5 rounded-full">
+                                {dueToday.length} item(ns)
+                            </span>
+                        </h3>
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+                            {dueToday.map(payment => (
+                                <PaymentCard key={payment.id} payment={payment} />
+                            ))}
+                            {dueToday.length === 0 && (
+                                <div className="text-center py-8 text-dark-muted text-sm border-2 border-dashed border-dark-border rounded-2xl bg-dark-surface/30">
+                                    <p className="text-xs opacity-60">Nenhum pagamento para hoje.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Atrasados (Pendentes) */}
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-semibold flex items-center justify-between pl-1">
+                            <div className="flex items-center gap-2 text-brand-pink">
+                                <TrendDown size={18} />
+                                Vendas com Pagamentos Pendentes
+                            </div>
+                            <span className="text-[10px] bg-brand-pink/10 text-brand-pink px-2 py-0.5 rounded-full">
+                                {overdue.length} item(ns)
+                            </span>
+                        </h3>
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+                            {overdue.map(payment => (
+                                <PaymentCard key={payment.id} payment={payment} indicatorColor="bg-brand-pink" />
+                            ))}
+                            {overdue.length === 0 && (
+                                <div className="text-center py-8 text-dark-muted text-sm border-2 border-dashed border-dark-border rounded-2xl bg-dark-surface/30">
+                                    <p className="text-xs opacity-60">Nenhum pagamento atrasado.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
             </div>
 
-            {/* Recent Activity / Actions */}
+            {/* Deliveries Today */}
             <div>
-                <h3 className="text-sm font-muted text-dark-muted mb-3 uppercase tracking-widest pl-1">Ações Rápidas</h3>
-                <div className="grid grid-cols-2 gap-3">
-                    <button className="p-4 bg-dark-surface rounded-xl border border-dark-border flex flex-col items-center justify-center gap-2 hover:bg-dark-surface/80 active:scale-95 transition-all group">
-                        <div className="p-2 rounded-full bg-brand-purple/20 text-brand-purple group-hover:scale-110 transition-transform">
-                            <TrendUp size={20} weight="bold" />
+                <h3 className="text-sm font-semibold flex items-center justify-between pl-1 mb-3">
+                    <div className="flex items-center gap-2 text-brand-green">
+                        <CloudArrowUp size={18} />
+                        Entregas de Hoje
+                    </div>
+                </h3>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                    {deliveriesToday.map(d => (
+                        <DeliveryCard key={d.id} delivery={d} />
+                    ))}
+                    {deliveriesToday.length === 0 && (
+                        <div className="text-center py-8 text-dark-muted text-sm border-2 border-dashed border-dark-border rounded-2xl bg-dark-surface/30">
+                            <p className="text-xs opacity-60">Nenhuma entrega prevista para hoje.</p>
                         </div>
-                        <span className="text-xs font-medium">Nova Venda</span>
-                    </button>
-                    <button className="p-4 bg-dark-surface rounded-xl border border-dark-border flex flex-col items-center justify-center gap-2 hover:bg-dark-surface/80 active:scale-95 transition-all group">
-                        <div className="p-2 rounded-full bg-brand-green/20 text-brand-green group-hover:scale-110 transition-transform">
-                            <CloudArrowUp size={20} weight="bold" />
-                        </div>
-                        <span className="text-xs font-medium">Sincronizar</span>
-                    </button>
+                    )}
                 </div>
             </div>
 

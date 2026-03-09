@@ -1,6 +1,6 @@
-import { collection, getDocs, doc, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { parseCurrency } from './formatters';
+import { parseCurrency, getLocalISODate } from './formatters';
 
 export const exportBackupGeral = async () => {
     try {
@@ -16,7 +16,7 @@ export const exportBackupGeral = async () => {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", "backup_dona_dp_" + new Date().toISOString().split('T')[0] + ".json");
+        downloadAnchorNode.setAttribute("download", "backup_dona_dp_" + getLocalISODate() + ".json");
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();

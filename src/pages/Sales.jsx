@@ -43,8 +43,11 @@ const Sales = () => {
     )).sort().reverse();
 
     const filteredVendas = vendas.filter(v => {
-        const matchesSearch = (v.cliente && v.cliente.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (v.produtoDesc && v.produtoDesc.toLowerCase().includes(searchTerm.toLowerCase()));
+        const cText = (v.cliente || '').toString().toLowerCase();
+        const dText = (v.produtoDesc || '').toString().toLowerCase();
+        const sText = searchTerm.toLowerCase();
+
+        const matchesSearch = cText.includes(sText) || dText.includes(sText);
 
         // Period filter: vendas sem data sempre aparecem
         if (periodo !== 'all') {
@@ -58,13 +61,30 @@ const Sales = () => {
 
         const type = v.tipo || 'Venda';
         if (filterType === 'all') return matchesSearch;
+        if (filterType === 'PAGO') return matchesSearch && type !== 'PGO' && v.status === 'Pago';
+        if (filterType === 'PENDENTE') return matchesSearch && type !== 'PGO' && v.status !== 'Pago';
         return matchesSearch && type === filterType;
     });
 
+    if (filterType === 'PAGO' || filterType === 'PENDENTE') {
+        filteredVendas.sort((a, b) => {
+            const nameA = (a.cliente || '').toString().toLowerCase();
+            const nameB = (b.cliente || '').toString().toLowerCase();
+            return nameA.localeCompare(nameB);
+        });
+    }
+
     // Total das vendas filtradas
-    const totalVendas = filteredVendas.reduce((acc, v) => acc + parseCurrency(v.total), 0);
+    const totalVendas = filteredVendas.reduce((acc, v) => {
+        if (v.tipo === 'PGO') {
+            const linkedSales = vendas.filter(s => s.pgoId === v.id);
+            const aggCost = linkedSales.reduce((a, s) => a + parseCurrency(s.custo), 0);
+            return acc + (aggCost > 0 ? aggCost : parseCurrency(v.total));
+        }
+        return acc + parseCurrency(v.total);
+    }, 0);
     const totalCusto = filteredVendas.reduce((acc, v) => acc + parseCurrency(v.custo), 0);
-    const totalLucro = totalVendas - totalCusto;
+    const totalLucro = filterType === 'PGO' ? 0 : totalVendas - totalCusto;
 
     // --- ACTIONS ---
     const openNewSale = () => { setEditingSale(null); setIsModalOpen(true); };
@@ -72,20 +92,36 @@ const Sales = () => {
 
     // Delete Logic (Cascade)
     const cascadeDeleteFinanceiro = async (vendaId) => {
+        if (!vendaId || typeof vendaId !== 'string') return;
         const prefix = vendaId.slice(0, 4);
         const safeFinanceiro = Array.isArray(financeiro) ? financeiro : [];
-        const linked = safeFinanceiro.filter(f => f.ref && f.ref.includes(prefix));
-        await Promise.all(linked.map(f => deleteDoc(doc(db, 'financeiro', f.id))));
+        const linked = safeFinanceiro.filter(f => f && f.ref && typeof f.ref === 'string' && f.ref.includes(prefix));
+        
+        for (const f of linked) {
+            try {
+                await deleteDoc(doc(db, 'financeiro', f.id));
+            } catch (err) {
+                console.error("Erro ao apagar financeiro vinculado:", err);
+            }
+        }
     };
 
     const handleDelete = async (id, e) => {
         e.stopPropagation();
+        console.log("Attempting to delete sale with ID:", id);
         if (window.confirm('Tem certeza que deseja apagar esta venda?')) {
             try {
+                // Tenta apagar o financeiro, mas não bloqueia se der erro parcial
                 await cascadeDeleteFinanceiro(id);
+            } catch (error) {
+                console.error("Error in cascade: ", error);
+            }
+
+            try {
                 await deleteDoc(doc(db, 'vendas', id));
             } catch (error) {
-                alert('Erro ao apagar: ' + error.message);
+                console.error("Sale delete error:", error);
+                alert('Erro na exclusão da venda: ' + error.message);
             }
         }
     };
@@ -119,17 +155,20 @@ const Sales = () => {
                     batch.delete(doc(db, 'vendas', vendaId));
 
                     // 2. Delete linked finance records (cascade)
-                    const prefix = vendaId.slice(0, 4);
-                    const linked = safeFinanceiro.filter(f => f.ref && f.ref.includes(prefix));
-                    linked.forEach(f => {
-                        batch.delete(doc(db, 'financeiro', f.id));
-                    });
+                    if (vendaId && typeof vendaId === 'string') {
+                        const prefix = vendaId.slice(0, 4);
+                        const linked = safeFinanceiro.filter(f => f && f.ref && typeof f.ref === 'string' && f.ref.includes(prefix));
+                        linked.forEach(f => {
+                            batch.delete(doc(db, 'financeiro', f.id));
+                        });
+                    }
                 });
 
                 await batch.commit();
                 setSelectedSales(new Set());
                 alert(`${selectedSales.size} vendas removidas com sucesso!`);
             } catch (error) {
+                console.error("Batch delete error:", error);
                 alert('Erro na exclusão em massa: ' + error.message);
             }
         }
@@ -145,18 +184,21 @@ const Sales = () => {
             const totalVal = salesList.reduce((acc, s) => acc + parseCurrency(s.total), 0);
             const totalCost = salesList.reduce((acc, s) => acc + (s.custo ? parseCurrency(s.custo) : 0), 0); // Simplified cost logic
 
-            const pgoRef = doc(collection(db, "pgos"));
+            const pgoRef = doc(collection(db, "vendas"));
             batch.set(pgoRef, {
-                nome: name,
-                totalVendas: totalVal,
-                totalCustos: totalCost,
-                status: 'Aberto',
-                timestamp: new Date()
+                tipo: 'PGO',
+                cliente: name,
+                produtoDesc: `Agrupamento de ${salesList.length} itens`,
+                marca: 'Diversos',
+                total: formatCurrency(totalVal),
+                custo: formatCurrency(totalCost),
+                data: new Date().toISOString().split('T')[0],
+                timestamp: Date.now()
             });
 
             salesList.forEach(sale => {
                 const saleRef = doc(db, "vendas", sale.id);
-                batch.update(saleRef, { pgoId: pgoRef.id, tipo: 'PGO' });
+                batch.update(saleRef, { pgoId: pgoRef.id }); // Do not change tipo to PGO for children!
             });
 
             await batch.commit();
@@ -267,7 +309,7 @@ const Sales = () => {
 
                 {/* Filter Pills */}
                 <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                    {['all', 'Venda', 'PGO'].map(type => (
+                    {['all', 'Venda', 'PGO', 'PAGO', 'PENDENTE'].map(type => (
                         <button
                             key={type}
                             onClick={() => setFilterType(type)}
@@ -276,7 +318,7 @@ const Sales = () => {
                                 : 'bg-dark-surface border-dark-border text-dark-muted'
                                 }`}
                         >
-                            {type === 'all' ? 'Todas' : type === 'PGO' ? 'Pagamentos' : 'Vendas'}
+                            {type === 'all' ? 'Todas' : type === 'PGO' ? 'Pagamentos' : type === 'Venda' ? 'Vendas' : type === 'PAGO' ? 'Pago' : 'Pendente'}
                         </button>
                     ))}
                 </div>
@@ -299,24 +341,38 @@ const Sales = () => {
                                 <div>
                                     <h3 className="font-semibold text-dark-text">{sale.cliente}</h3>
                                     <div className="text-[10px] text-dark-muted uppercase tracking-wider">
-                                        {formatDateForDisplay(sale.data)} • {sale.marca}
+                                        {formatDateForDisplay(sale.data)} {sale.tipo !== 'PGO' && sale.marca ? `• ${sale.marca}` : ''}
                                     </div>
                                 </div>
-                                <div className={`text-xs px-2 py-0.5 rounded-md border ${sale.tipo === 'PGO' ? 'border-brand-pink text-brand-pink' : 'border-brand-green text-brand-green'
-                                    }`}>
-                                    {sale.tipo === 'PGO' ? 'Pagamento' : (sale.tipo || 'Venda')}
+                                <div className="flex items-center gap-2">
+                                    {sale.tipo !== 'PGO' && (
+                                        <div className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${sale.status === 'Pago' ? 'border-brand-green text-brand-green bg-brand-green/10' : 'border-brand-pink text-brand-pink bg-brand-pink/10'}`}>
+                                            {sale.status === 'Pago' ? 'PAGO' : 'PENDENTE'}
+                                        </div>
+                                    )}
+                                    <div className={`text-xs px-2 py-0.5 rounded-md border ${sale.tipo === 'PGO' ? 'border-brand-pink text-brand-pink' : 'border-brand-green text-brand-green'}`}>
+                                        {sale.tipo === 'PGO' ? 'Pagamento' : (sale.tipo || 'Venda')}
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Details */}
-                            <div className="text-sm text-dark-muted mb-3 line-clamp-1">
-                                {sale.produtoDesc || 'Produtos diversos...'}
-                            </div>
+                            {sale.tipo !== 'PGO' && (
+                                <div className="text-sm text-dark-muted mb-3 line-clamp-1">
+                                    {sale.produtoDesc || 'Produtos diversos...'}
+                                </div>
+                            )}
 
                             {/* Footer */}
                             <div className="flex justify-between items-center">
                                 <span className="text-xl font-bold text-white">
-                                    {formatCurrency(sale.total)}
+                                    {sale.tipo === 'PGO'
+                                        ? (() => {
+                                            const linkedSales = vendas.filter(v => v.pgoId === sale.id);
+                                            const aggCost = linkedSales.reduce((acc, v) => acc + parseCurrency(v.custo), 0);
+                                            return aggCost > 0 ? formatCurrency(aggCost) : formatCurrency(sale.total);
+                                        })()
+                                        : formatCurrency(sale.total)}
                                 </span>
 
                                 <div className="flex gap-2" onClick={e => e.stopPropagation()}>

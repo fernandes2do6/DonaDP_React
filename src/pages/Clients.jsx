@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import ClientDetail from '../components/ClientDetail';
 import { useData } from '../contexts/DataContext';
-import { Plus, MagnifyingGlass, PencilSimple, Trash, WhatsappLogo, FileArrowUp, FileArrowDown } from 'phosphor-react';
+import { Plus, MagnifyingGlass, PencilSimple, Trash, WhatsappLogo, FileArrowUp, FileArrowDown, Eye } from 'phosphor-react';
 import Modal from '../components/Modal';
 import ClientForm from '../components/ClientForm';
 import { exportToCSV, processImport } from '../utils/exportImport';
@@ -14,6 +15,7 @@ const Clients = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState(null);
     const [selectedClients, setSelectedClients] = useState(new Set());
+    const [viewingClient, setViewingClient] = useState(null);
 
     const safeClients = Array.isArray(clientes) ? clientes : [];
     const filteredClients = safeClients.filter(c =>
@@ -139,7 +141,14 @@ const Clients = () => {
                             </div>
 
                             {/* Botões de Ação */}
-                            <div className="flex gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                            <div className="flex gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                <button
+                                    onClick={() => setViewingClient(client)}
+                                    className="p-2 rounded-full bg-dark-surface hover:bg-white/10 text-brand-purple transition-colors"
+                                    title="Ver detalhes"
+                                >
+                                    <Eye size={16} />
+                                </button>
                                 <button
                                     onClick={(e) => openEdit(client, e)}
                                     className="p-2 rounded-full bg-dark-surface hover:bg-white/10 text-brand-purple transition-colors"
@@ -181,6 +190,11 @@ const Clients = () => {
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingClient ? "Editar Cliente" : "Novo Cliente"}>
                 <ClientForm clientToEdit={editingClient} onClose={() => setIsModalOpen(false)} />
             </Modal>
+
+            {/* Client Detail Overlay */}
+            {viewingClient && (
+                <ClientDetail client={viewingClient} onClose={() => setViewingClient(null)} />
+            )}
         </div>
     );
 };

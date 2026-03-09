@@ -75,31 +75,14 @@ const ProductForm = ({ productToEdit, onClose }) => {
                 <label className={labelClass}>Ciclo (Ex: Ciclo 12/2026)</label>
                 <input type="text" value={formData.nome} onChange={(e) => handleChange('nome', e.target.value)} required className={inputClass} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-                <div>
-                    <label className={labelClass}>Marca</label>
-                    <select value={formData.marca} onChange={(e) => handleChange('marca', e.target.value)} className={inputClass}>
-                        <option value="Natura">Natura</option>
-                        <option value="Avon">Avon</option>
-                        <option value="Boticário">Boticário</option>
-                        <option value="Eudora">Eudora</option>
-                    </select>
-                </div>
-                <div>
-                    <label className={labelClass}>Custo (%)</label>
-                    <input type="number" value={formData.porcentagem} onChange={(e) => handleChange('porcentagem', e.target.value)} placeholder="Ex: 30" className={inputClass} />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-                <div>
-                    <label className={labelClass}>Preço Venda (R$)</label>
-                    <input type="text" value={formData.preco} onChange={(e) => handleChange('preco', e.target.value)} className={inputClass} />
-                </div>
-                <div>
-                    <label className={labelClass}>Custo Estimado (R$)</label>
-                    <input type="text" value={formData.custo} onChange={(e) => handleChange('custo', e.target.value)} className={inputClass} />
-                </div>
+            <div className="mb-4">
+                <label className={labelClass}>Marca</label>
+                <select value={formData.marca} onChange={(e) => handleChange('marca', e.target.value)} className={inputClass}>
+                    <option value="Natura">Natura</option>
+                    <option value="Avon">Avon</option>
+                    <option value="Boticário">Boticário</option>
+                    <option value="Eudora">Eudora</option>
+                </select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
