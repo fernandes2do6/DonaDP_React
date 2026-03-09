@@ -258,8 +258,8 @@ const ClientDetail = ({ client, onClose }) => {
                         <div className="max-h-[400px] overflow-y-auto custom-scrollbar space-y-2">
                             {clientSales.map(sale => {
                                 const total = parseCurrency(sale.total);
-                                const custo = parseCurrency(sale.custo);
-                                const lucro = total - custo;
+                                const lucro = parseCurrency(sale.custo); // O que estava salvo como 'custo' no BD na verdade era o 'lucro' (ex: 30%)
+                                const custo = total - lucro; // O verdadeiro custo é o Total menos a margem de Lucro.
                                 const isPago = sale.status === 'Pago';
                                 return (
                                     <div key={sale.id} className="px-3 py-3 rounded-xl bg-dark-bg/50 border border-white/5 hover:border-white/10 transition-colors">
