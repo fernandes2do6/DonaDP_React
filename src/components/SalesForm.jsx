@@ -430,7 +430,7 @@ const SalesForm = ({ saleToEdit, onClose, defaultClient }) => {
                     <select value={formData.pgoId} onChange={(e) => handleChange('pgoId', e.target.value)} className={inputClass}>
                         <option value="">Nenhum</option>
                         {/* Include ONLY Vendas marked as PGO type (these are the ones visible and deletable in the UI) */}
-                        {vendas && vendas.filter(v => v.tipo === 'PGO').map(v => <option key={v.id} value={v.id}>{v.cliente} {v.marca ? `(${v.marca})` : ''}</option>)}
+                        {vendas && vendas.filter(v => v.tipo === 'PGO').map(v => <option key={v.id} value={v.id}>{v.cliente}</option>)}
                     </select>
                 </div>
             )}
