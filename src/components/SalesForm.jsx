@@ -300,24 +300,37 @@ const SalesForm = ({ saleToEdit, onClose, defaultClient }) => {
                 </div>
             )}
 
-            {/* Row 4: Price + Cost */}
-            <div className={`grid gap-3 ${formData.tipo === 'PGO' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {/* Row 4: Price + Cost + Profit */}
+            <div className={`grid gap-3 ${formData.tipo === 'PGO' ? 'grid-cols-1' : 'grid-cols-3'}`}>
                 <div>
                     <label className={labelClass}>{formData.tipo === 'PGO' ? 'Valor (R$)' : 'Total (R$)'}</label>
                     <input type="text" value={formData.total} onChange={(e) => handleChange('total', e.target.value)} className={inputClass} />
                 </div>
                 {formData.tipo !== 'PGO' && (
-                    <div>
-                        <label className={labelClass}>
-                            Custo (R$) {currentPct > 0 && <span className="text-brand-purple font-bold">({currentPct}%)</span>}
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.custo}
-                            readOnly
-                            className={`${inputClass} bg-dark-surface/50 text-dark-muted cursor-not-allowed`}
-                        />
-                    </div>
+                    <>
+                        <div>
+                            <label className={labelClass}>
+                                Custo (R$) {currentPct > 0 && <span className="text-brand-purple font-bold">({currentPct}%)</span>}
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.custo}
+                                readOnly
+                                className={`${inputClass} bg-dark-surface/50 text-dark-muted cursor-not-allowed`}
+                            />
+                        </div>
+                        <div>
+                            <label className={labelClass}>
+                                Lucro Líquido
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.total && formData.custo ? formatCurrency(parseCurrency(formData.total) - parseCurrency(formData.custo)) : formData.total ? formData.total : ''}
+                                readOnly
+                                className={`${inputClass} bg-dark-surface/50 ${formData.total && formData.custo && (parseCurrency(formData.total) - parseCurrency(formData.custo)) < 0 ? 'text-brand-pink' : 'text-brand-green'} cursor-not-allowed font-semibold`}
+                            />
+                        </div>
+                    </>
                 )}
             </div>
 
