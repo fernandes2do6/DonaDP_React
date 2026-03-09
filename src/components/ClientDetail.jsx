@@ -7,9 +7,10 @@ import { db } from '../services/firebase';
 import GlassCard from './GlassCard';
 import Modal from './Modal';
 import SalesForm from './SalesForm';
+import ClientForm from './ClientForm';
 
 const ClientDetail = ({ client, onClose }) => {
-    const { vendas, financeiro } = useData();
+    const { vendas, financeiro, clientes } = useData();
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [searchUnlinked, setSearchUnlinked] = useState('');
     const [selectedToLink, setSelectedToLink] = useState(new Set());
@@ -17,6 +18,9 @@ const ClientDetail = ({ client, onClose }) => {
     const [filterStatus, setFilterStatus] = useState('Todas');
     const [filterMarca, setFilterMarca] = useState('Todas');
     const [filterCiclo, setFilterCiclo] = useState('Todos');
+
+    // Edit client state
+    const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
 
     // Edit sale state
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -33,9 +37,12 @@ const ClientDetail = ({ client, onClose }) => {
 
     if (!client) return null;
 
-    const phone = client.whatsapp || client.telefone || '';
+    // Live binding from Context so edits cascade immediately
+    const liveClient = clientes?.find(c => c.id === client.id) || client;
+
+    const phone = liveClient.whatsapp || liveClient.telefone || '';
     const hasWhatsApp = phone && phone !== '(00) 00000-0000';
-    const clientName = client.nome || '';
+    const clientName = liveClient.nome || '';
 
     // Base vendas deste cliente (case-insensitive match)
     const baseClientSales = vendas.filter(v =>
@@ -150,7 +157,13 @@ const ClientDetail = ({ client, onClose }) => {
                     <X size={22} className="text-dark-muted" />
                 </button>
                 <h2 className="text-sm font-semibold text-white">Detalhes do Cliente</h2>
-                <div className="w-8" /> {/* spacer */}
+                <button 
+                    onClick={() => setIsEditClientModalOpen(true)} 
+                    className="p-1.5 rounded-full hover:bg-white/10 transition-colors text-brand-purple"
+                    title="Editar Informações do Cliente"
+                >
+                    <PencilSimple size={20} />
+                </button>
             </div>
 
             {/* Scrollable Content */}
@@ -431,6 +444,14 @@ const ClientDetail = ({ client, onClose }) => {
                     </div>
                 </div>
             )}
+
+            {/* Edit Client Modal */}
+            <Modal isOpen={isEditClientModalOpen} onClose={() => setIsEditClientModalOpen(false)} title="Editar Cliente">
+                <ClientForm 
+                    clientToEdit={liveClient} 
+                    onClose={() => setIsEditClientModalOpen(false)} 
+                />
+            </Modal>
 
             {/* Edit Sale Modal */}
             <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Editar Venda">
