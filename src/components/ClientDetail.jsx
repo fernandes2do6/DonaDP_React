@@ -15,6 +15,8 @@ const ClientDetail = ({ client, onClose }) => {
     const [selectedToLink, setSelectedToLink] = useState(new Set());
     const [linking, setLinking] = useState(false);
     const [filterStatus, setFilterStatus] = useState('Todas');
+    const [filterMarca, setFilterMarca] = useState('Todas');
+    const [filterCiclo, setFilterCiclo] = useState('Todos');
 
     // Edit sale state
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -35,14 +37,23 @@ const ClientDetail = ({ client, onClose }) => {
     const hasWhatsApp = phone && phone !== '(00) 00000-0000';
     const clientName = client.nome || '';
 
-    // Vendas deste cliente (case-insensitive match)
-    const clientSales = vendas.filter(v =>
+    // Base vendas deste cliente (case-insensitive match)
+    const baseClientSales = vendas.filter(v =>
         v.cliente && clientName && v.cliente.toLowerCase() === clientName.toLowerCase()
-    ).filter(v => {
-        if (filterStatus === 'Todas') return true;
-        if (filterStatus === 'Pendente' && v.status !== 'Pago') return true;
-        if (filterStatus === 'Pago' && v.status === 'Pago') return true;
-        return false;
+    );
+
+    const availableMarcas = [...new Set(baseClientSales.map(v => v.marca).filter(Boolean))].sort();
+    const availableCiclos = [...new Set(baseClientSales.map(v => v.produtoDesc).filter(Boolean))].sort();
+
+    // Vendas filtradas
+    const clientSales = baseClientSales.filter(v => {
+        if (filterStatus !== 'Todas') {
+            if (filterStatus === 'Pendente' && v.status === 'Pago') return false;
+            if (filterStatus === 'Pago' && v.status !== 'Pago') return false;
+        }
+        if (filterMarca !== 'Todas' && v.marca !== filterMarca) return false;
+        if (filterCiclo !== 'Todos' && v.produtoDesc !== filterCiclo) return false;
+        return true;
     });
 
     const totalClientSales = clientSales.reduce((acc, v) => acc + parseCurrency(v.total), 0);
@@ -206,19 +217,41 @@ const ClientDetail = ({ client, onClose }) => {
                     </div>
 
                     {/* Filters */}
-                    <div className="flex gap-2 mb-3 overflow-x-auto pb-1 no-scrollbar">
-                        {['Todas', 'Pendente', 'Pago'].map(status => (
-                            <button
-                                key={status}
-                                onClick={() => setFilterStatus(status)}
-                                className={`px-3 py-1 rounded-full text-[10px] font-medium transition-colors border ${filterStatus === status
-                                    ? 'bg-brand-purple/20 border-brand-purple text-brand-purple'
-                                    : 'bg-dark-surface border-dark-border text-dark-muted hover:border-white/10'
-                                    }`}
+                    <div className="flex flex-col gap-2 mb-3">
+                        {/* Status Pills */}
+                        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                            {['Todas', 'Pendente', 'Pago'].map(status => (
+                                <button
+                                    key={status}
+                                    onClick={() => setFilterStatus(status)}
+                                    className={`px-3 py-1 rounded-full text-[10px] font-medium transition-colors border ${filterStatus === status
+                                        ? 'bg-brand-purple/20 border-brand-purple text-brand-purple'
+                                        : 'bg-dark-surface border-dark-border text-dark-muted hover:border-white/10'
+                                        }`}
+                                >
+                                    {status === 'Todas' ? 'Todas' : status === 'Pendente' ? 'Pendentes' : 'Pagos'}
+                                </button>
+                            ))}
+                        </div>
+                        {/* Dropdowns (Marca e Ciclo) */}
+                        <div className="flex gap-2">
+                            <select
+                                value={filterMarca}
+                                onChange={(e) => setFilterMarca(e.target.value)}
+                                className="flex-1 bg-dark-surface border border-dark-border rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-brand-purple"
                             >
-                                {status === 'Todas' ? 'Todas' : status === 'Pendente' ? 'Pendentes' : 'Pagos'}
-                            </button>
-                        ))}
+                                <option value="Todas">Todas as Marcas</option>
+                                {availableMarcas.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            <select
+                                value={filterCiclo}
+                                onChange={(e) => setFilterCiclo(e.target.value)}
+                                className="flex-1 bg-dark-surface border border-dark-border rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-brand-purple"
+                            >
+                                <option value="Todos">Todos os Ciclos (Produtos)</option>
+                                {availableCiclos.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
                     </div>
 
                     {clientSales.length > 0 ? (
