@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
-import { parseCurrency, formatCurrency } from '../utils/formatters';
+import { parseCurrency, formatCurrency, getLocalISODate } from '../utils/formatters';
 import { addDoc, collection, setDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
-const SalesForm = ({ saleToEdit, onClose }) => {
-    const { clientes, produtos, financeiro, pgos } = useData();
+const DEFAULT_BRAND_PCT = { Natura: 30, Avon: 30, 'Boticário': 80, Eudora: 30 };
+const loadBrandPcts = () => {
+    try {
+        const stored = localStorage.getItem('brandCostPct');
+        return stored ? { ...DEFAULT_BRAND_PCT, ...JSON.parse(stored) } : { ...DEFAULT_BRAND_PCT };
+    } catch { return { ...DEFAULT_BRAND_PCT }; }
+};
+
+const SalesForm = ({ saleToEdit, onClose, defaultClient }) => {
+    const { clientes, produtos, financeiro, vendas } = useData();
 
     // ── DATE HELPERS ──────────────────────────────────────────────────────────
     const toInputDate = (d) => {
-        if (!d) return new Date().toISOString().split('T')[0];
+        if (!d) return getLocalISODate();
         if (typeof d === 'string' && d.includes('-')) return d;
         const parts = d.split('/');
         if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
@@ -22,54 +30,65 @@ const SalesForm = ({ saleToEdit, onClose }) => {
         if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
         return d;
     };
-    const todayISO = new Date().toISOString().split('T')[0];
 
     // ── STATE ──────────────────────────────────────────────────────────────
     const [formData, setFormData] = useState({
         tipo: 'Venda',
-        cliente: '',
+        cliente: defaultClient || '',
         produtoId: '',
         produtoDesc: '',
         marca: 'Natura',
         total: '',
         custo: '',
         formaPagamento: 'Pix',
-        data: fromInputDate(todayISO),
-        dataPagamento: todayISO,
-        dataEntrega: todayISO,
-        parcelas: '1x',
-        pgoId: ''
+        data: fromInputDate(getLocalISODate()),
+        dataPagamento: getLocalISODate(),
+        dataEntrega: getLocalISODate(),
+        parcelas: '2x',
+        pgoId: '',
+        status: 'Pendente',
+        dataPago: ''
     });
     const [submitting, setSubmitting] = useState(false);
+    const [currentPct, setCurrentPct] = useState(0);
 
     useEffect(() => {
         if (saleToEdit) {
             setFormData({
                 ...saleToEdit,
                 produtoId: saleToEdit.produtoId || '',
-                parcelas: saleToEdit.parcelas || '1x',
-                data: saleToEdit.data || fromInputDate(todayISO)
+                parcelas: saleToEdit.parcelas || '2x',
+                data: saleToEdit.data || fromInputDate(getLocalISODate()),
+                status: saleToEdit.status || 'Pendente',
+                dataPago: saleToEdit.dataPago || ''
             });
         }
     }, [saleToEdit]);
 
     // Cost Calculation Logic
-    const CUSTO_PERCENTUAL = 30;
     useEffect(() => {
+        const brandPcts = loadBrandPcts();
+        let pctVal = brandPcts[formData.marca] || 30; // Default to the brand's standard or 30
+
+        if (formData.produtoId) {
+            const prod = produtos.find(p => p.id === formData.produtoId);
+            if (prod && prod.porcentagem) pctVal = parseFloat(prod.porcentagem);
+        }
+        setCurrentPct(pctVal);
+
         if (formData.total) {
             const totalVal = parseCurrency(formData.total);
             if (!isNaN(totalVal) && totalVal > 0) {
-                let pctVal = CUSTO_PERCENTUAL;
-                if (formData.produtoId) {
-                    const prod = produtos.find(p => p.id === formData.produtoId);
-                    if (prod && prod.porcentagem) pctVal = parseFloat(prod.porcentagem);
-                }
                 const costVal = totalVal * (pctVal / 100);
                 const formattedCost = formatCurrency(costVal);
                 setFormData(prev => prev.custo !== formattedCost ? { ...prev, custo: formattedCost } : prev);
+            } else {
+                setFormData(prev => ({ ...prev, custo: '' }));
             }
+        } else {
+            setFormData(prev => ({ ...prev, custo: '' }));
         }
-    }, [formData.total, formData.produtoId, produtos]);
+    }, [formData.total, formData.marca, formData.produtoId, produtos]);
 
     const handleChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
 
@@ -90,7 +109,7 @@ const SalesForm = ({ saleToEdit, onClose }) => {
         }
     };
 
-    const propagateToFinanceiro = async (vendaId, { total, custo, marca, dataPagamento, dataEntrega }) => {
+    const propagateToFinanceiro = async (vendaId, { total, custo, marca, dataPagamento, dataEntrega, status }) => {
         const safeFinanceiro = Array.isArray(financeiro) ? financeiro : [];
         const prefix = vendaId.slice(0, 4);
         const related = safeFinanceiro.filter(f => f.ref && f.ref.includes(prefix));
@@ -98,48 +117,126 @@ const SalesForm = ({ saleToEdit, onClose }) => {
         for (const item of related) {
             let updates = {};
             if (item.tipo === 'Receita') {
-                updates = { valor: total, marca, vencimento: dataPagamento };
+                updates = { valor: total, marca, vencimento: dataPagamento, status: status || 'Pendente' };
             } else if (item.tipo === 'Despesa') {
-                updates = { valor: custo, marca, vencimento: dataEntrega }; // Cost due when delivered/cycling
+                updates = { valor: custo, marca, vencimento: dataEntrega, status: status || 'Pendente' }; // Cost due when delivered/cycling
             }
             await updateDoc(doc(db, 'financeiro', item.id), updates);
         }
+    };
+
+    // --- Helper to add months ---
+    const addMonthsToDate = (dateString, monthsToAdd) => {
+        if (!dateString) return '';
+        const date = new Date(dateString + 'T12:00:00'); // set mid-day to avoid timezone shifting
+        date.setMonth(date.getMonth() + monthsToAdd);
+        return date.toISOString().split('T')[0];
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
         try {
-            if (!formData.cliente) { alert("Selecione um cliente!"); setSubmitting(false); return; }
+            if (!formData.cliente) { alert(formData.tipo === 'PGO' ? "Digite um nome para o Pagamento (no campo Cliente)" : "Selecione um cliente!"); setSubmitting(false); return; }
 
             const payload = { ...formData };
-            let docId = saleToEdit?.id;
 
-            if (saleToEdit) {
-                await setDoc(doc(db, 'vendas', docId), payload, { merge: true });
-                await propagateToFinanceiro(docId, payload);
-                alert("Venda atualizada!");
-            } else {
-                const docRef = await addDoc(collection(db, 'vendas'), { ...payload, timestamp: Date.now() });
-                docId = docRef.id;
-
-                // Create Financeiro Record
-                await addDoc(collection(db, 'financeiro'), {
-                    tipo: 'Receita',
-                    categoria: 'Venda de Produtos',
-                    descricao: `Venda - ${formData.cliente}`,
-                    ref: `Venda ${docRef.id.slice(0, 4)} - ${formData.cliente}`,
-                    valor: formData.total,
-                    vencimento: formData.dataPagamento,
-                    status: 'Pendente',
-                    marca: formData.marca,
-                    timestamp: Date.now()
-                });
-                alert("Venda salva!");
+            // Cleanup PGO fields that are irrelevant
+            if (payload.tipo === 'PGO') {
+                payload.custo = '';
+                payload.dataEntrega = '';
+                payload.produtoId = '';
+                payload.marca = '';
+                payload.formaPagamento = '';
+                payload.parcelas = '';
+                if (!payload.produtoDesc) {
+                    payload.produtoDesc = 'Agrupamento / Pagamento';
+                }
             }
+
+            let numParcelas = 1;
+            // Permits partitioning when a sale is set to 'Parcelamento', handling both new and editing cases.
+            if (payload.tipo !== 'PGO' && payload.formaPagamento === 'Parcelamento' && typeof payload.parcelas === 'string') {
+                numParcelas = parseInt(payload.parcelas.replace('x', ''), 10) || 1;
+            }
+
+            const isParcelamento = numParcelas > 1;
+            const operations = []; // promises
+
+            let totalBase = parseCurrency(payload.total);
+            let custoBase = payload.custo ? parseCurrency(payload.custo) : 0;
+
+            const instTotal = Math.floor((totalBase / numParcelas) * 100) / 100;
+            const instCusto = Math.floor((custoBase / numParcelas) * 100) / 100;
+
+            // Remainder for the first installment to ensure exact sum
+            let firstTotal = instTotal + (totalBase - (instTotal * numParcelas));
+            let firstCusto = instCusto + (custoBase - (instCusto * numParcelas));
+
+            for (let i = 0; i < numParcelas; i++) {
+                const currentTotal = i === 0 ? formatCurrency(firstTotal) : formatCurrency(instTotal);
+                const currentCusto = i === 0 ? formatCurrency(firstCusto) : formatCurrency(instCusto);
+                const currentPaymentDate = i === 0 ? payload.dataPagamento : addMonthsToDate(payload.dataPagamento, i);
+
+                let currentDesc = payload.produtoDesc || '';
+                if (isParcelamento) {
+                    currentDesc = `${currentDesc} (Parcela ${i + 1}/${numParcelas})`.trim();
+                }
+
+                const instPayload = {
+                    ...payload,
+                    total: currentTotal,
+                    custo: currentCusto,
+                    dataPagamento: currentPaymentDate,
+                    produtoDesc: currentDesc,
+                    formaPagamento: 'Pix',
+                    parcelas: '1x',
+                    // If creating new installments on an edit, status might be reset for future ones (optional logic)
+                    status: i > 0 && saleToEdit ? 'Pendente' : payload.status,
+                    dataPago: i > 0 && saleToEdit ? '' : payload.dataPago,
+                };
+
+                // Remove embedded document ID to prevent collision bugs when mapped back from Firestore
+                if (instPayload.id) delete instPayload.id;
+
+                // If editing and it's the first loop -> Update the existing record
+                if (saleToEdit && i === 0) {
+                    const docId = saleToEdit.id;
+                    operations.push(setDoc(doc(db, 'vendas', docId), instPayload, { merge: true })
+                        .then(() => {
+                            if (instPayload.tipo !== 'PGO') {
+                                return propagateToFinanceiro(docId, instPayload);
+                            }
+                        }));
+                } else {
+                    // Create new Venda record
+                    operations.push(addDoc(collection(db, 'vendas'), { ...instPayload, timestamp: Date.now() })
+                        .then(async (docRef) => {
+                            if (instPayload.tipo !== 'PGO') {
+                                await addDoc(collection(db, 'financeiro'), {
+                                    tipo: 'Receita',
+                                    categoria: 'Venda de Produtos',
+                                    descricao: `Venda - ${instPayload.cliente}`,
+                                    ref: `Venda ${docRef.id.slice(0, 4)} - ${instPayload.cliente}`,
+                                    valor: currentTotal,
+                                    vencimento: currentPaymentDate,
+                                    status: instPayload.status || 'Pendente',
+                                    marca: instPayload.marca,
+                                    timestamp: Date.now()
+                                });
+                            }
+                        }));
+                }
+            }
+
+            // Wait for all saves/updates
+            console.log("Awaiting all Firestore operations:", operations.length);
+            await Promise.all(operations);
+            console.log("All operations succeeded.");
+            alert(payload.tipo === 'PGO' ? "Pagamento salvo!" : `Venda salva${isParcelamento ? ` em ${numParcelas} parcelas` : ''}!`);
             onClose();
         } catch (error) {
-            console.error(error);
+            console.error("Error during handleSubmit saving:", error);
             alert("Erro: " + error.message);
         } finally {
             setSubmitting(false);
@@ -173,24 +270,11 @@ const SalesForm = ({ saleToEdit, onClose }) => {
                 </div>
             </div>
 
-            {/* Row 2: Product Select + Desc */}
-            <div>
-                <label className={labelClass}>Produto (Ciclo)</label>
-                <select value={formData.produtoId} onChange={handleProductChange} className={inputClass}>
-                    <option value="">Selecione...</option>
-                    {produtos.map(p => <option key={p.id} value={p.id}>{p.nome} - {formatCurrency(p.preco)}</option>)}
-                </select>
-            </div>
-            <div>
-                <label className={labelClass}>Descrição (Personalizada)</label>
-                <input type="text" value={formData.produtoDesc} onChange={(e) => handleChange('produtoDesc', e.target.value)} className={inputClass} />
-            </div>
-
-            {/* Row 3: Brand + Price + Cost */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* Row 2: Brand */}
+            {formData.tipo !== 'PGO' && (
                 <div>
                     <label className={labelClass}>Marca</label>
-                    <select value={formData.marca} onChange={(e) => handleChange('marca', e.target.value)} className={inputClass}>
+                    <select value={formData.marca} onChange={(e) => { handleChange('marca', e.target.value); handleChange('produtoId', ''); }} className={inputClass}>
                         <option value="Natura">Natura</option>
                         <option value="Avon">Avon</option>
                         <option value="Boticário">Boticário</option>
@@ -198,35 +282,149 @@ const SalesForm = ({ saleToEdit, onClose }) => {
                         <option value="Outros">Outros</option>
                     </select>
                 </div>
+            )}
+
+            {/* Row 3: Product (filtered by brand) */}
+            {formData.tipo !== 'PGO' && (
                 <div>
-                    <label className={labelClass}>Total (R$)</label>
+                    <label className={labelClass}>Produto (Ciclo)</label>
+                    <select value={formData.produtoId} onChange={handleProductChange} className={inputClass}>
+                        <option value="">Selecione...</option>
+                        {produtos.filter(p => p.marca === formData.marca).map(p => {
+                            const inicio = p.dataInicio ? new Date(p.dataInicio + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+                            const fim = p.dataFim ? new Date(p.dataFim + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+                            const periodo = inicio && fim ? ` • ${inicio} - ${fim}` : '';
+                            return <option key={p.id} value={p.id}>Ciclo {p.nome}{periodo}</option>;
+                        })}
+                    </select>
+                </div>
+            )}
+
+            {/* Row 4: Price + Cost */}
+            <div className={`grid gap-3 ${formData.tipo === 'PGO' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                <div>
+                    <label className={labelClass}>{formData.tipo === 'PGO' ? 'Valor (R$)' : 'Total (R$)'}</label>
                     <input type="text" value={formData.total} onChange={(e) => handleChange('total', e.target.value)} className={inputClass} />
                 </div>
-                <div>
-                    <label className={labelClass}>Custo (R$)</label>
-                    <input type="text" value={formData.custo} onChange={(e) => handleChange('custo', e.target.value)} className={inputClass} />
-                </div>
+                {formData.tipo !== 'PGO' && (
+                    <div>
+                        <label className={labelClass}>
+                            Custo (R$) {currentPct > 0 && <span className="text-brand-purple font-bold">({currentPct}%)</span>}
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.custo}
+                            readOnly
+                            className={`${inputClass} bg-dark-surface/50 text-dark-muted cursor-not-allowed`}
+                        />
+                    </div>
+                )}
             </div>
 
-            {/* Row 4: Dates & Payment */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Row 5: Payment Method */}
+            {formData.tipo !== 'PGO' && (
+                <div className={`grid gap-3 ${formData.formaPagamento === 'Parcelamento' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    <div>
+                        <label className={labelClass}>Forma de Pagamento</label>
+                        <select
+                            value={formData.formaPagamento}
+                            onChange={(e) => {
+                                handleChange('formaPagamento', e.target.value);
+                                if (e.target.value !== 'Parcelamento') {
+                                    handleChange('parcelas', '1x');
+                                } else {
+                                    handleChange('parcelas', '2x');
+                                }
+                            }}
+                            className={inputClass}
+                        >
+                            <option value="Pix">Pix</option>
+                            <option value="Parcelamento">Parcelamento</option>
+                        </select>
+                    </div>
+                    {formData.formaPagamento === 'Parcelamento' && (
+                        <div>
+                            <label className={labelClass}>Parcelas</label>
+                            <select
+                                value={formData.parcelas}
+                                onChange={(e) => handleChange('parcelas', e.target.value)}
+                                className={inputClass}
+                            >
+                                <option value="2x">2x</option>
+                                <option value="3x">3x</option>
+                                <option value="4x">4x</option>
+                                <option value="5x">5x</option>
+                                <option value="6x">6x</option>
+                                <option value="10x">10x</option>
+                                <option value="12x">12x</option>
+                            </select>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Row 6: Dates */}
+            <div className={`grid gap-3 ${formData.tipo === 'PGO' ? 'grid-cols-2' : 'grid-cols-3'}`}>
                 <div>
-                    <label className={labelClass}>Data Venda</label>
-                    <input type="text" value={formData.data} readOnly className={`${inputClass} opacity-50 cursor-not-allowed`} />
+                    <label className={labelClass}>Data {formData.tipo === 'PGO' ? 'do Pagamento' : 'Venda'}</label>
+                    <input type="date" value={toInputDate(formData.data)} onChange={(e) => handleChange('data', fromInputDate(e.target.value))} className={inputClass} />
                 </div>
                 <div>
                     <label className={labelClass}>Previsão Pgto</label>
                     <input type="date" value={formData.dataPagamento} onChange={(e) => handleChange('dataPagamento', e.target.value)} className={inputClass} />
                 </div>
+                {formData.tipo !== 'PGO' && (
+                    <div>
+                        <label className={labelClass}>Previsão Entrega</label>
+                        <input type="date" value={formData.dataEntrega || ''} onChange={(e) => handleChange('dataEntrega', e.target.value)} className={inputClass} />
+                    </div>
+                )}
             </div>
 
-            <div>
-                <label className={labelClass}>Vincular a PGO (Opcional)</label>
-                <select value={formData.pgoId} onChange={(e) => handleChange('pgoId', e.target.value)} className={inputClass}>
-                    <option value="">Nenhum</option>
-                    {pgos && pgos.filter(p => p.status === 'Aberto').map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-            </div>
+            {/* Row 6.5: Payment Status */}
+            {formData.tipo !== 'PGO' && (
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className={labelClass}>Status do Pagamento</label>
+                        <select
+                            value={formData.status || 'Pendente'}
+                            onChange={(e) => {
+                                handleChange('status', e.target.value);
+                                if (e.target.value === 'Pago' && !formData.dataPago) {
+                                    handleChange('dataPago', getLocalISODate());
+                                } else if (e.target.value === 'Pendente') {
+                                    handleChange('dataPago', '');
+                                }
+                            }}
+                            className={inputClass}
+                        >
+                            <option value="Pendente">Pendente</option>
+                            <option value="Pago">Pago</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className={labelClass}>Data do Pagamento (Real)</label>
+                        <input
+                            type="date"
+                            value={formData.dataPago || ''}
+                            onChange={(e) => handleChange('dataPago', e.target.value)}
+                            className={`${inputClass} ${formData.status !== 'Pago' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={formData.status !== 'Pago'}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {formData.tipo !== 'PGO' && (
+                <div>
+                    <label className={labelClass}>Vincular a PGO (Opcional)</label>
+                    <select value={formData.pgoId} onChange={(e) => handleChange('pgoId', e.target.value)} className={inputClass}>
+                        <option value="">Nenhum</option>
+                        {/* Include ONLY Vendas marked as PGO type (these are the ones visible and deletable in the UI) */}
+                        {vendas && vendas.filter(v => v.tipo === 'PGO').map(v => <option key={v.id} value={v.id}>{v.cliente} {v.marca ? `(${v.marca})` : ''}</option>)}
+                    </select>
+                </div>
+            )}
 
             <div className="pt-4 flex gap-3">
                 <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-dark-border text-dark-text hover:bg-dark-surface transition-colors" disabled={submitting}>Cancelar</button>
