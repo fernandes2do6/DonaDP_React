@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
 import { parseCurrency, formatCurrency, formatDateForDisplay } from '../utils/formatters';
-import { Plus, MagnifyingGlass, Trash, PencilSimple, WhatsappLogo, Funnel, X, CheckCircle, FileArrowUp, FileArrowDown, ListChecks } from 'phosphor-react';
+import { Plus, MagnifyingGlass, Trash, PencilSimple, WhatsappLogo, Funnel, X, CheckCircle, FileArrowUp, FileArrowDown, ListChecks, CaretDown, CaretUp } from 'phosphor-react';
 import Modal from '../components/Modal';
 import SalesForm from '../components/SalesForm';
 import { exportToCSV, processImport } from '../utils/exportImport';
@@ -15,13 +16,34 @@ const Sales = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSale, setEditingSale] = useState(null);
     const [selectedSales, setSelectedSales] = useState(new Set());
+    const [expandedPgoId, setExpandedPgoId] = useState(null);
+
+    const [activeModule, setActiveModule] = useState('menu'); // 'menu' | 'vendas' | 'pgos'
+
+    // Force gateway menu if navigated from BottomNav or invalid state
+    const location = useLocation();
+    useEffect(() => {
+        if (location.state?.resetMenu) {
+            setActiveModule('menu');
+        }
+    }, [location.state?.resetMenu]);
 
     // Filter State
-    const [filterType, setFilterType] = useState('all'); // all, Venda, PGO
+    const [filterType, setFilterType] = useState('all'); // all, Venda, PGO, PAGO, PENDENTE
     const [periodo, setPeriodo] = useState(() => {
         const today = new Date();
         return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
     });
+
+    // Handle Module Switch
+    const navigateToModule = (moduleType) => {
+        setActiveModule(moduleType);
+        if (moduleType === 'vendas') {
+            setFilterType('all');
+        } else if (moduleType === 'pgos') {
+            setFilterType('PGO');
+        }
+    };
 
     // Date parsing helper (DD/MM/YYYY or YYYY-MM-DD)
     const parseDateHelper = (dateStr) => {
@@ -56,13 +78,24 @@ const Sales = () => {
                 const [y, m] = periodo.split('-');
                 if (d.getFullYear() !== parseInt(y) || d.getMonth() !== parseInt(m) - 1) return false;
             }
-            // se d é null (sem data), mostra em qualquer período
         }
 
         const type = v.tipo || 'Venda';
-        if (filterType === 'all') return matchesSearch;
-        if (filterType === 'PAGO') return matchesSearch && type !== 'PGO' && v.status === 'Pago';
-        if (filterType === 'PENDENTE') return matchesSearch && type !== 'PGO' && v.status !== 'Pago';
+        
+        // Em Vendas, escodemos PGOs completamente se 'all'
+        if (activeModule === 'vendas') {
+            if (filterType === 'all') return matchesSearch && type !== 'PGO';
+            if (filterType === 'Venda') return matchesSearch && type !== 'PGO';
+            if (filterType === 'PAGO') return matchesSearch && type !== 'PGO' && v.status === 'Pago';
+            if (filterType === 'PENDENTE') return matchesSearch && type !== 'PGO' && v.status !== 'Pago';
+        }
+        
+        // Em Pagamentos, forçamos sempre PGO
+        if (activeModule === 'pgos') {
+            return matchesSearch && type === 'PGO';
+        }
+
+        // Dropthrough standard (pra garantir)
         return matchesSearch && type === filterType;
     });
 
@@ -84,7 +117,7 @@ const Sales = () => {
         return acc + parseCurrency(v.total);
     }, 0);
     const totalCusto = filteredVendas.reduce((acc, v) => acc + parseCurrency(v.custo), 0);
-    const totalLucro = filterType === 'PGO' ? 0 : totalVendas - totalCusto;
+    const totalLucro = activeModule === 'pgos' ? 0 : totalVendas - totalCusto;
 
     // --- ACTIONS ---
     const openNewSale = () => { setEditingSale(null); setIsModalOpen(true); };
@@ -108,10 +141,8 @@ const Sales = () => {
 
     const handleDelete = async (id, e) => {
         e.stopPropagation();
-        console.log("Attempting to delete sale with ID:", id);
         if (window.confirm('Tem certeza que deseja apagar esta venda?')) {
             try {
-                // Tenta apagar o financeiro, mas não bloqueia se der erro parcial
                 await cascadeDeleteFinanceiro(id);
             } catch (error) {
                 console.error("Error in cascade: ", error);
@@ -120,7 +151,6 @@ const Sales = () => {
             try {
                 await deleteDoc(doc(db, 'vendas', id));
             } catch (error) {
-                console.error("Sale delete error:", error);
                 alert('Erro na exclusão da venda: ' + error.message);
             }
         }
@@ -145,16 +175,13 @@ const Sales = () => {
 
     const handleDeleteSelected = async () => {
         if (selectedSales.size === 0) return;
-        if (window.confirm(`Tem certeza que deseja apagar ${selectedSales.size} vendas e todos os seus registros financeiros vinculados?`)) {
+        if (window.confirm(`Tem certeza que deseja apagar ${selectedSales.size} registros e seus financeiros vinculados?`)) {
             try {
                 const batch = writeBatch(db);
                 const safeFinanceiro = Array.isArray(financeiro) ? financeiro : [];
 
                 selectedSales.forEach(vendaId => {
-                    // 1. Delete the sale
                     batch.delete(doc(db, 'vendas', vendaId));
-
-                    // 2. Delete linked finance records (cascade)
                     if (vendaId && typeof vendaId === 'string') {
                         const prefix = vendaId.slice(0, 4);
                         const linked = safeFinanceiro.filter(f => f && f.ref && typeof f.ref === 'string' && f.ref.includes(prefix));
@@ -166,9 +193,8 @@ const Sales = () => {
 
                 await batch.commit();
                 setSelectedSales(new Set());
-                alert(`${selectedSales.size} vendas removidas com sucesso!`);
+                alert(`${selectedSales.size} registros removidos com sucesso!`);
             } catch (error) {
-                console.error("Batch delete error:", error);
                 alert('Erro na exclusão em massa: ' + error.message);
             }
         }
@@ -182,7 +208,7 @@ const Sales = () => {
         try {
             const batch = writeBatch(db);
             const totalVal = salesList.reduce((acc, s) => acc + parseCurrency(s.total), 0);
-            const totalCost = salesList.reduce((acc, s) => acc + (s.custo ? parseCurrency(s.custo) : 0), 0); // Simplified cost logic
+            const totalCost = salesList.reduce((acc, s) => acc + (s.custo ? parseCurrency(s.custo) : 0), 0);
 
             const pgoRef = doc(collection(db, "vendas"));
             batch.set(pgoRef, {
@@ -198,13 +224,13 @@ const Sales = () => {
 
             salesList.forEach(sale => {
                 const saleRef = doc(db, "vendas", sale.id);
-                batch.update(saleRef, { pgoId: pgoRef.id }); // Do not change tipo to PGO for children!
+                batch.update(saleRef, { pgoId: pgoRef.id }); 
             });
 
             await batch.commit();
             alert('Pagamento Criado com Sucesso!');
             setSelectedSales(new Set());
-            setFilterType('PGO');
+            navigateToModule('pgos');
         } catch (error) {
             alert("Erro: " + error.message);
         }
@@ -213,10 +239,62 @@ const Sales = () => {
 
     if (loading) return <div className="text-center text-brand-purple mt-10">Carregando...</div>;
 
+    // --- GATEWAY MENU VIEW ---
+    if (activeModule === 'menu') {
+        return (
+            <div className="pb-24 space-y-6 pt-6">
+                <div className="text-center space-y-2 mb-8 mt-4">
+                    <h1 className="text-2xl font-bold text-white">Gestão Financeira</h1>
+                    <p className="text-dark-muted text-sm">Selecione o módulo que deseja acessar</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 px-4 max-w-sm mx-auto">
+                    <button
+                        onClick={() => navigateToModule('vendas')}
+                        className="group flex flex-col items-center justify-center p-8 rounded-3xl bg-dark-surface border border-brand-purple/20 hover:border-brand-purple transition-all hover:bg-brand-purple/5 shadow-lg relative overflow-hidden active:scale-95"
+                    >
+                        <div className="absolute inset-0 bg-brand-purple/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="w-16 h-16 rounded-2xl bg-brand-purple/20 flex items-center justify-center mb-4 text-brand-purple group-hover:scale-110 transition-transform">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 256 256"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V72H40V56ZM40,200V88H216V200ZM176,128a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,128Zm-40,32a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h40A8,8,0,0,1,136,160Z"></path></svg>
+                        </div>
+                        <h2 className="text-xl font-bold text-white mb-2">Vendas</h2>
+                        <p className="text-xs text-dark-muted text-center leading-relaxed">Gerencie todas as suas vendas realizadas, status e parcelamentos de clientes.</p>
+                    </button>
+
+                    <button
+                        onClick={() => navigateToModule('pgos')}
+                        className="group flex flex-col items-center justify-center p-8 rounded-3xl bg-dark-surface border border-brand-green/20 hover:border-brand-green transition-all hover:bg-brand-green/5 shadow-lg relative overflow-hidden active:scale-95"
+                    >
+                        <div className="absolute inset-0 bg-brand-green/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="w-16 h-16 rounded-2xl bg-brand-green/20 flex items-center justify-center mb-4 text-brand-green group-hover:scale-110 transition-transform">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 256 256"><path d="M216,56H40A16,16,0,0,0,24,72V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V72A16,16,0,0,0,216,56Zm0,144H40V72H216V200ZM176,120a24,24,0,1,1-24-24A24,24,0,0,1,176,120Zm-16,0a8,8,0,1,0-8,8A8,8,0,0,0,160,120Zm-58.42,1.83a8,8,0,0,1,3.25,10.84C89,161.44,72,176,40,176a8,8,0,0,1,0-16c23.08,0,36.56-11,50.83-36.67A8,8,0,0,1,101.58,121.83Zm89.37,36.31c19.68-15.65,25.05-38.15,25.05-40.14a8,8,0,1,0-15.63-3.32c0,.13-3.79,16.51-19.37,28.88a8,8,0,1,0,10,14.58Z"></path></svg>
+                        </div>
+                        <h2 className="text-xl font-bold text-white mb-2">Pagamentos</h2>
+                        <p className="text-xs text-dark-muted text-center leading-relaxed">Centralize e acompanhe repasses aos fornecedores, cartões e Pix agrupados.</p>
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // --- MODULE VIEW (VENDAS OR PGOS) ---
     return (
         <div className="pb-24 space-y-4">
-            {/* Period Selector */}
+            {/* Context/Period Header */}
             <div className="sticky top-0 z-40 bg-dark-bg/95 backdrop-blur-sm pt-2 pb-2">
+                <div className="flex items-center gap-2 mb-4">
+                    <button 
+                        onClick={() => setActiveModule('menu')}
+                        className="py-1.5 px-3 rounded-xl bg-dark-surface hover:bg-white/10 text-brand-purple flex items-center gap-2 font-semibold text-sm transition-all"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"></path></svg>
+                        Voltar
+                    </button>
+                    <h2 className="text-white font-bold text-lg flex-1 text-right">
+                        {activeModule === 'vendas' ? 'Vendas' : 'Pagamentos'}
+                    </h2>
+                </div>
+                
                 <div className="flex justify-between items-center mb-3">
                     <select
                         value={periodo}
@@ -226,7 +304,7 @@ const Sales = () => {
                         <option value="all">Todo o Período</option>
                         {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
-                    <span className="text-xs text-dark-muted">{filteredVendas.length} venda(s)</span>
+                    <span className="text-xs text-dark-muted">{filteredVendas.length} {activeModule === 'vendas' ? 'venda(s)' : 'pagamento(s)'}</span>
                 </div>
 
                 {/* Summary Cards */}
@@ -376,6 +454,18 @@ const Sales = () => {
                                 </span>
 
                                 <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                                    {sale.tipo === 'PGO' && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setExpandedPgoId(prev => prev === sale.id ? null : sale.id);
+                                            }}
+                                            className="p-2 rounded-full bg-dark-surface hover:bg-white/10 text-dark-muted hover:text-white transition-colors flex items-center justify-center shadow-lg shadow-black/20"
+                                            title={expandedPgoId === sale.id ? "Recolher itens" : "Expandir itens"}
+                                        >
+                                            {expandedPgoId === sale.id ? <CaretUp size={18} /> : <CaretDown size={18} />}
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => openEditSale(sale)}
                                         className="p-2 rounded-full bg-dark-surface hover:bg-white/10 text-brand-purple transition-colors">
@@ -393,6 +483,45 @@ const Sales = () => {
                                     </button>
                                 </div>
                             </div>
+
+                            {/* Expanded Linked Sales */}
+                            {sale.tipo === 'PGO' && expandedPgoId === sale.id && (
+                                <div className="mt-4 pt-3 border-t border-dark-border" onClick={e => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="text-xs font-bold text-dark-muted uppercase tracking-wider">
+                                            Vendas Vinculadas
+                                        </h4>
+                                        <span className="bg-dark-surface px-2 py-0.5 rounded-full text-[10px] text-dark-muted">
+                                            {vendas.filter(v => v.pgoId === sale.id).length} itens
+                                        </span>
+                                    </div>
+                                    {(() => {
+                                        const linkedSales = vendas.filter(v => v.pgoId === sale.id);
+                                        if (linkedSales.length === 0) return <p className="text-xs text-brand-pink/70 bg-brand-pink/10 p-2 rounded-lg italic">Nenhuma venda explícita encontrada para este pagamento.</p>;
+                                        return (
+                                            <ul className="space-y-2">
+                                                {linkedSales.map(ls => (
+                                                    <li key={ls.id} className="flex justify-between items-center bg-dark-bg/40 p-2.5 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
+                                                        <div className="flex-1 min-w-0 mr-2">
+                                                            <p className="text-xs font-semibold text-white truncate">{ls.cliente}</p>
+                                                            <p className="text-[10px] text-dark-muted truncate mt-0.5">
+                                                                {ls.data && `${formatDateForDisplay(ls.data)} • `}
+                                                                {ls.marca || 'Diversos'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-right flex-shrink-0">
+                                                            <p className="text-xs font-bold text-brand-green">
+                                                                {ls.custo ? formatCurrency(parseCurrency(ls.custo)) : formatCurrency(parseCurrency(ls.total))}
+                                                            </p>
+                                                            <p className="text-[9px] text-dark-muted mt-0.5">Custo/Repasse</p>
+                                                        </div>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        );
+                                    })()}
+                                </div>
+                            )}
                         </GlassCard>
                     );
                 })}

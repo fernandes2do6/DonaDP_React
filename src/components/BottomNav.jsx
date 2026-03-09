@@ -20,7 +20,13 @@ const BottomNav = () => {
                 return (
                     <button
                         key={item.path}
-                        onClick={() => navigate(item.path)}
+                        onClick={() => {
+                            if (item.path === '/sales') {
+                                navigate(item.path, { state: { resetMenu: Date.now() } });
+                            } else {
+                                navigate(item.path);
+                            }
+                        }}
                         className={`flex flex-col items-center justify-center w-full h-full transition-all duration-300 ${isActive ? 'text-brand-purple' : 'text-dark-muted hover:text-dark-text'}`}
                     >
                         <div className={`text-2xl mb-1 transition-transform duration-300 ${isActive ? '-translate-y-1 scale-110 drop-shadow-[0_0_10px_rgba(139,92,246,0.5)]' : ''}`}>
