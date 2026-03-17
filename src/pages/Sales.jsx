@@ -36,6 +36,7 @@ const Sales = () => {
         const today = new Date();
         return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
     });
+    const [specificDate, setSpecificDate] = useState('');
 
     // Handle Module Switch
     const navigateToModule = (moduleType) => {
@@ -73,9 +74,13 @@ const Sales = () => {
 
         const matchesSearch = cText.includes(sText) || dText.includes(sText);
 
-        // Period filter: vendas sem data sempre aparecem
-        if (periodo !== 'all') {
-            const d = parseDateHelper(v.data);
+        const d = parseDateHelper(v.data);
+        
+        if (specificDate) {
+            if (!d) return false;
+            const dateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (dateString !== specificDate) return false;
+        } else if (periodo !== 'all') {
             if (d) {
                 const [y, m] = periodo.split('-');
                 if (d.getFullYear() !== parseInt(y) || d.getMonth() !== parseInt(m) - 1) return false;
@@ -332,16 +337,31 @@ const Sales = () => {
                     </h2>
                 </div>
                 
-                <div className="flex justify-between items-center mb-3">
-                    <select
-                        value={periodo}
-                        onChange={(e) => setPeriodo(e.target.value)}
-                        className="bg-dark-surface border border-dark-border rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none"
-                    >
-                        <option value="all">Todo o Período</option>
-                        {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                    <span className="text-xs text-dark-muted">{filteredVendas.length} {activeModule === 'vendas' ? 'venda(s)' : 'pagamento(s)'}</span>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <input
+                            type="date"
+                            value={specificDate}
+                            onChange={(e) => {
+                                setSpecificDate(e.target.value);
+                                if (e.target.value) setPeriodo('all');
+                            }}
+                            className="bg-dark-surface border border-dark-border rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none flex-1 sm:flex-none"
+                            title="Filtrar por data específica (Dia/Mês/Ano)"
+                        />
+                        <select
+                            value={periodo}
+                            onChange={(e) => {
+                                setPeriodo(e.target.value);
+                                if (e.target.value !== 'all') setSpecificDate('');
+                            }}
+                            className="bg-dark-surface border border-dark-border rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none flex-1 sm:flex-none"
+                        >
+                            <option value="all">Todo o Período</option>
+                            {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                    </div>
+                    <span className="text-xs text-dark-muted self-end sm:self-auto">{filteredVendas.length} {activeModule === 'vendas' ? 'venda(s)' : 'pagamento(s)'}</span>
                 </div>
 
                 {/* Summary Cards */}
