@@ -32,11 +32,8 @@ const Sales = () => {
 
     // Filter State
     const [filterType, setFilterType] = useState('all'); // all, Venda, PGO, PAGO, PENDENTE
-    const [periodo, setPeriodo] = useState(() => {
-        const today = new Date();
-        return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-    });
-    const [specificDate, setSpecificDate] = useState('');
+    const [selectedMonth, setSelectedMonth] = useState(() => String(new Date().getMonth() + 1));
+    const [selectedDay, setSelectedDay] = useState('');
 
     // Handle Module Switch
     const navigateToModule = (moduleType) => {
@@ -58,14 +55,17 @@ const Sales = () => {
         return null;
     };
 
-    // Available months from actual sales data
-    const availableMonths = Array.from(new Set(
+    // Available days for selected month
+    const availableDays = Array.from(new Set(
         vendas.map(v => {
             const d = parseDateHelper(v.dataPagamento || v.data);
             if (!d) return null;
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (selectedMonth !== 'all' && (d.getMonth() + 1).toString() === selectedMonth && d.getFullYear() === 2026) {
+                return String(d.getDate()).padStart(2, '0');
+            }
+            return null;
         }).filter(Boolean)
-    )).sort().reverse();
+    )).sort((a,b) => parseInt(a) - parseInt(b));
 
     const filteredVendas = vendas.filter(v => {
         const cText = (v.cliente || '').toString().toLowerCase();
@@ -76,14 +76,14 @@ const Sales = () => {
 
         const d = parseDateHelper(v.dataPagamento || v.data);
         
-        if (specificDate) {
+        if (selectedMonth !== 'all') {
             if (!d) return false;
-            const dateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            if (dateString !== specificDate) return false;
-        } else if (periodo !== 'all') {
-            if (d) {
-                const [y, m] = periodo.split('-');
-                if (d.getFullYear() !== parseInt(y) || d.getMonth() !== parseInt(m) - 1) return false;
+            // Filtro focado em 2026 como pedido pelo usuário
+            if (d.getFullYear() !== 2026) return false;
+            if ((d.getMonth() + 1).toString() !== selectedMonth) return false;
+            
+            if (selectedDay) {
+                if (String(d.getDate()).padStart(2, '0') !== selectedDay) return false;
             }
         }
 
@@ -337,31 +337,52 @@ const Sales = () => {
                     </h2>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
-                    <div className="flex gap-2 w-full sm:w-auto">
-                        <input
-                            type="date"
-                            value={specificDate}
-                            onChange={(e) => {
-                                setSpecificDate(e.target.value);
-                                if (e.target.value) setPeriodo('all');
-                            }}
-                            className="bg-dark-surface border border-dark-border rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none flex-1 sm:flex-none"
-                            title="Filtrar por data específica (Dia/Mês/Ano)"
-                        />
-                        <select
-                            value={periodo}
-                            onChange={(e) => {
-                                setPeriodo(e.target.value);
-                                if (e.target.value !== 'all') setSpecificDate('');
-                            }}
-                            className="bg-dark-surface border border-dark-border rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none flex-1 sm:flex-none"
+                {/* Modern Date Filters */}
+                <div className="flex flex-col gap-3 mb-4">
+                    {/* Months */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                        <button
+                            onClick={() => { setSelectedMonth('all'); setSelectedDay(''); }}
+                            className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors border ${selectedMonth === 'all' ? 'bg-brand-purple/20 border-brand-purple text-brand-purple shadow-[0_0_10px_rgba(139,92,246,0.2)]' : 'bg-dark-surface border-dark-border text-dark-muted hover:border-white/20'}`}
                         >
-                            <option value="all">Todo o Período</option>
-                            {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
+                            Todos
+                        </button>
+                        {Array.from({length: 12}, (_, i) => String(i + 1)).map(m => (
+                            <button
+                                key={m}
+                                onClick={() => { setSelectedMonth(m); setSelectedDay(''); }}
+                                className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors border ${selectedMonth === m ? 'bg-brand-purple/20 border-brand-purple text-brand-purple shadow-[0_0_10px_rgba(139,92,246,0.2)]' : 'bg-dark-surface border-dark-border text-dark-muted hover:border-white/20'}`}
+                            >
+                                Mês {m.padStart(2, '0')}
+                            </button>
+                        ))}
                     </div>
-                    <span className="text-xs text-dark-muted self-end sm:self-auto">{filteredVendas.length} {activeModule === 'vendas' ? 'venda(s)' : 'pagamento(s)'}</span>
+
+                    {/* Days (only if month selected) */}
+                    {selectedMonth !== 'all' && availableDays.length > 0 && (
+                        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                            <span className="text-xs text-brand-purple font-medium whitespace-nowrap pl-1">Dias de 2026:</span>
+                            <button
+                                onClick={() => setSelectedDay('')}
+                                className={`px-3 py-1 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors border ${!selectedDay ? 'bg-brand-purple/20 border-brand-purple text-brand-purple' : 'bg-dark-surface border-dark-border text-dark-muted hover:border-white/20'}`}
+                            >
+                                Todos
+                            </button>
+                            {availableDays.map(day => (
+                                <button
+                                    key={day}
+                                    onClick={() => setSelectedDay(day)}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors border ${selectedDay === day ? 'bg-brand-purple/20 border-brand-purple text-brand-purple' : 'bg-dark-surface border-dark-border text-dark-muted hover:border-white/20'}`}
+                                >
+                                    Dia {day}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex justify-end mb-3">
+                    <span className="text-xs text-dark-muted">{filteredVendas.length} {activeModule === 'vendas' ? 'venda(s)' : 'pagamento(s)'}</span>
                 </div>
 
                 {/* Summary Cards */}
