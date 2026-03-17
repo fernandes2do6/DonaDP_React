@@ -6,17 +6,19 @@ import { Plus, MagnifyingGlass, Trash, PencilSimple, WhatsappLogo, Funnel, X, Ch
 import Modal from '../components/Modal';
 import SalesForm from '../components/SalesForm';
 import { exportToCSV, processImport } from '../utils/exportImport';
-import { doc, deleteDoc, writeBatch, collection } from 'firebase/firestore';
+import { doc, deleteDoc, writeBatch, collection, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import GlassCard from '../components/GlassCard';
+import ClientDetail from '../components/ClientDetail';
 
 const Sales = () => {
-    const { vendas, financeiro, loading } = useData(); // pgos, clients not strictly needed for list view unless PGO linking logic
+    const { vendas, financeiro, loading, clientes } = useData(); // Extract clientes
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSale, setEditingSale] = useState(null);
     const [selectedSales, setSelectedSales] = useState(new Set());
     const [expandedPgoId, setExpandedPgoId] = useState(null);
+    const [viewingClient, setViewingClient] = useState(null);
 
     const [activeModule, setActiveModule] = useState('menu'); // 'menu' | 'vendas' | 'pgos'
 
@@ -136,6 +138,41 @@ const Sales = () => {
             } catch (err) {
                 console.error("Erro ao apagar financeiro vinculado:", err);
             }
+        }
+    };
+
+    const handleTogglePaymentStatus = async (sale, e) => {
+        e.stopPropagation();
+        const newStatus = sale.status === 'Pago' ? 'Pendente' : 'Pago';
+        const updates = { status: newStatus };
+        
+        if (newStatus === 'Pago') {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            updates.dataPago = `${yyyy}-${mm}-${dd}`;
+        } else {
+            updates.dataPago = '';
+        }
+
+        try {
+            await updateDoc(doc(db, 'vendas', sale.id), updates);
+            
+            const prefix = sale.id.slice(0, 4);
+            const safeFinanceiro = Array.isArray(financeiro) ? financeiro : [];
+            const linked = safeFinanceiro.filter(f => f && f.ref && typeof f.ref === 'string' && f.ref.includes(prefix));
+            
+            for (const f of linked) {
+                try {
+                    await updateDoc(doc(db, 'financeiro', f.id), { status: newStatus });
+                } catch (err) {
+                    console.error("Erro ao atualizar status do financeiro:", err);
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao atualizar status:", error);
+            alert("Erro ao atualizar status da venda.");
         }
     };
 
@@ -423,16 +460,35 @@ const Sales = () => {
                             {/* Header */}
                             <div className="flex justify-between items-start mb-2">
                                 <div>
-                                    <h3 className="font-semibold text-dark-text">{sale.cliente}</h3>
-                                    <div className="text-[10px] text-dark-muted uppercase tracking-wider">
+                                    <h3 
+                                        className={`font-semibold text-dark-text inline-block ${sale.tipo !== 'PGO' ? 'cursor-pointer hover:text-brand-purple hover:underline transition-all' : ''}`}
+                                        onClick={(e) => {
+                                            if (sale.tipo !== 'PGO') {
+                                                e.stopPropagation();
+                                                const clientObj = clientes?.find(c => c.nome === sale.cliente);
+                                                if (clientObj) {
+                                                    setViewingClient(clientObj);
+                                                } else {
+                                                    setViewingClient({ nome: sale.cliente });
+                                                }
+                                            }
+                                        }}
+                                        title={sale.tipo !== 'PGO' ? "Ver detalhes do cliente" : ""}
+                                    >
+                                        {sale.cliente}
+                                    </h3>
+                                    <div className="text-[10px] text-dark-muted uppercase tracking-wider mt-0.5">
                                         {formatDateForDisplay(sale.data)} {sale.tipo !== 'PGO' && sale.marca ? `• ${sale.marca}` : ''}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {sale.tipo !== 'PGO' && (
-                                        <div className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${sale.status === 'Pago' ? 'border-brand-green text-brand-green bg-brand-green/10' : 'border-brand-pink text-brand-pink bg-brand-pink/10'}`}>
+                                        <button
+                                            onClick={(e) => handleTogglePaymentStatus(sale, e)}
+                                            title={`Marcar como ${sale.status === 'Pago' ? 'Pendente' : 'Pago'}`}
+                                            className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${sale.status === 'Pago' ? 'border-brand-green text-brand-green bg-brand-green/10 hover:bg-brand-green/20' : 'border-brand-pink text-brand-pink bg-brand-pink/10 hover:bg-brand-pink/20'}`}>
                                             {sale.status === 'Pago' ? 'PAGO' : 'PENDENTE'}
-                                        </div>
+                                        </button>
                                     )}
                                     <div className={`text-xs px-2 py-0.5 rounded-md border ${sale.tipo === 'PGO' ? 'border-brand-pink text-brand-pink' : 'border-brand-green text-brand-green'}`}>
                                         {sale.tipo === 'PGO' ? 'Pagamento' : (sale.tipo || 'Venda')}
@@ -553,6 +609,11 @@ const Sales = () => {
                     onClose={() => setIsModalOpen(false)}
                 />
             </Modal>
+            
+            {/* Client Detail Overlay */}
+            {viewingClient && (
+                <ClientDetail client={viewingClient} onClose={() => setViewingClient(null)} />
+            )}
         </div>
     );
 };

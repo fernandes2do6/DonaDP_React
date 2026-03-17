@@ -18,6 +18,7 @@ const ClientDetail = ({ client, onClose }) => {
     const [filterStatus, setFilterStatus] = useState('Todas');
     const [filterMarca, setFilterMarca] = useState('Todas');
     const [filterCiclo, setFilterCiclo] = useState('Todos');
+    const [filterData, setFilterData] = useState('Todas');
 
     // Edit client state
     const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
@@ -49,18 +50,56 @@ const ClientDetail = ({ client, onClose }) => {
         v.cliente && clientName && v.cliente.toLowerCase() === clientName.toLowerCase()
     );
 
-    const availableMarcas = [...new Set(baseClientSales.map(v => v.marca).filter(Boolean))].sort();
-    const availableCiclos = [...new Set(baseClientSales.map(v => v.produtoDesc).filter(Boolean))].sort();
+    const getBaseProdutoDesc = (desc) => {
+        if (!desc) return '';
+        return String(desc).split(' (Parcela')[0].trim();
+    };
 
-    // Vendas filtradas
-    const clientSales = baseClientSales.filter(v => {
-        if (filterStatus !== 'Todas') {
-            if (filterStatus === 'Pendente' && v.status === 'Pago') return false;
-            if (filterStatus === 'Pago' && v.status !== 'Pago') return false;
-        }
-        if (filterMarca !== 'Todas' && v.marca !== filterMarca) return false;
-        if (filterCiclo !== 'Todos' && v.produtoDesc !== filterCiclo) return false;
+    // Helper functions for individual filters
+    const passStatus = (v) => {
+        if (filterStatus === 'Todas') return true;
+        if (filterStatus === 'Pendente' && v.status === 'Pago') return false;
+        if (filterStatus === 'Pago' && v.status !== 'Pago') return false;
         return true;
+    };
+    const passMarca = (v) => filterMarca === 'Todas' || v.marca === filterMarca;
+    const passCiclo = (v) => filterCiclo === 'Todos' || getBaseProdutoDesc(v.produtoDesc) === filterCiclo;
+    const passData = (v) => {
+        if (filterData === 'Todas') return true;
+        const parts = v.data?.split('/');
+        if (parts?.length === 3) {
+            return `${parts[0]}/${parts[1]}/${parts[2]}` === filterData;
+        }
+        const parts2 = v.data?.split('-');
+        if (parts2?.length === 3) {
+            return `${parts2[2]}/${parts2[1]}/${parts2[0]}` === filterData;
+        }
+        return false;
+    };
+
+    // Vendas filtradas final (o que renderiza na tela)
+    const clientSales = baseClientSales.filter(v => passStatus(v) && passMarca(v) && passCiclo(v) && passData(v));
+
+    // Base para os dropdowns (cada dropdown ignora o próprio filtro para permitir selecionar outras opções compatíveis)
+    const salesForMarca = baseClientSales.filter(v => passStatus(v) && passCiclo(v) && passData(v));
+    const salesForCiclo = baseClientSales.filter(v => passStatus(v) && passMarca(v) && passData(v));
+    const salesForData = baseClientSales.filter(v => passStatus(v) && passMarca(v) && passCiclo(v));
+
+    const availableMarcas = [...new Set(salesForMarca.map(v => v.marca).filter(Boolean))].sort();
+    const availableCiclos = [...new Set(salesForCiclo.map(v => getBaseProdutoDesc(v.produtoDesc)).filter(Boolean))].sort();
+    const availableDatas = [...new Set(salesForData.map(v => {
+        if (!v.data) return null;
+        const parts = v.data.split('/');
+        if (parts.length === 3) return `${parts[0]}/${parts[1]}/${parts[2]}`;
+        const parts2 = v.data.split('-');
+        if (parts2.length === 3) return `${parts2[2]}/${parts2[1]}/${parts2[0]}`;
+        return null;
+    }).filter(Boolean))].sort((a, b) => { // Sort descending by DD/MM/YYYY
+        const [dA, mA, yA] = a.split('/').map(Number);
+        const [dB, mB, yB] = b.split('/').map(Number);
+        const dateA = new Date(yA, mA - 1, dA).getTime();
+        const dateB = new Date(yB, mB - 1, dB).getTime();
+        return dateB - dateA;
     });
 
     const totalClientSales = clientSales.reduce((acc, v) => acc + parseCurrency(v.total), 0);
@@ -108,6 +147,41 @@ const ClientDetail = ({ client, onClose }) => {
             alert('Erro ao vincular: ' + error.message);
         } finally {
             setLinking(false);
+        }
+    };
+
+    const handleTogglePaymentStatus = async (sale, e) => {
+        e.stopPropagation();
+        const newStatus = sale.status === 'Pago' ? 'Pendente' : 'Pago';
+        const updates = { status: newStatus };
+        
+        if (newStatus === 'Pago') {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            updates.dataPago = `${yyyy}-${mm}-${dd}`;
+        } else {
+            updates.dataPago = '';
+        }
+
+        try {
+            await updateDoc(doc(db, 'vendas', sale.id), updates);
+            
+            const prefix = sale.id.slice(0, 4);
+            const safeFinanceiro = Array.isArray(financeiro) ? financeiro : [];
+            const linked = safeFinanceiro.filter(f => f && f.ref && typeof f.ref === 'string' && f.ref.includes(prefix));
+            
+            for (const f of linked) {
+                try {
+                    await updateDoc(doc(db, 'financeiro', f.id), { status: newStatus });
+                } catch (err) {
+                    console.error("Erro ao atualizar status do financeiro:", err);
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao atualizar status:", error);
+            alert("Erro ao atualizar status da venda.");
         }
     };
 
@@ -246,8 +320,8 @@ const ClientDetail = ({ client, onClose }) => {
                                 </button>
                             ))}
                         </div>
-                        {/* Dropdowns (Marca e Ciclo) */}
-                        <div className="flex gap-2">
+                        {/* Dropdowns (Marca, Ciclo, Data) */}
+                        <div className="flex flex-col sm:flex-row gap-2">
                             <select
                                 value={filterMarca}
                                 onChange={(e) => setFilterMarca(e.target.value)}
@@ -261,8 +335,16 @@ const ClientDetail = ({ client, onClose }) => {
                                 onChange={(e) => setFilterCiclo(e.target.value)}
                                 className="flex-1 bg-dark-surface border border-dark-border rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-brand-purple"
                             >
-                                <option value="Todos">Todos os Ciclos (Produtos)</option>
+                                <option value="Todos">Todos os Ciclos</option>
                                 {availableCiclos.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <select
+                                value={filterData}
+                                onChange={(e) => setFilterData(e.target.value)}
+                                className="flex-1 bg-dark-surface border border-dark-border rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-brand-purple"
+                            >
+                                <option value="Todas">Todas as Datas</option>
+                                {availableDatas.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
                         </div>
                     </div>
@@ -285,12 +367,16 @@ const ClientDetail = ({ client, onClose }) => {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2 ml-2 shrink-0">
-                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${isPago
-                                                    ? 'bg-brand-green/10 text-brand-green'
-                                                    : 'bg-brand-pink/10 text-brand-pink'
-                                                    }`}>
+                                                <button
+                                                    onClick={(e) => handleTogglePaymentStatus(sale, e)}
+                                                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors cursor-pointer ${isPago
+                                                        ? 'bg-brand-green/10 text-brand-green hover:bg-brand-green/20'
+                                                        : 'bg-brand-pink/10 text-brand-pink hover:bg-brand-pink/20'
+                                                        }`}
+                                                    title={`Marcar como ${isPago ? 'Pendente' : 'Pago'}`}
+                                                >
                                                     {isPago ? 'Pago' : 'Pendente'}
-                                                </span>
+                                                </button>
                                                 <button
                                                     onClick={() => openEditSale(sale)}
                                                     className="p-1.5 rounded-full bg-dark-surface hover:bg-white/10 text-brand-purple transition-colors"
