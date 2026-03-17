@@ -498,7 +498,7 @@ const Sales = () => {
                                         {sale.cliente}
                                     </h3>
                                     <div className="text-[10px] text-dark-muted uppercase tracking-wider mt-0.5">
-                                        {formatDateForDisplay(sale.data)} {sale.tipo !== 'PGO' && sale.marca ? `• ${sale.marca}` : ''}
+                                        {formatDateForDisplay(sale.dataPagamento || sale.data)} {sale.tipo !== 'PGO' && sale.marca ? `• ${sale.marca}` : ''}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
