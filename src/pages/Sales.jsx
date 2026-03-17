@@ -61,7 +61,7 @@ const Sales = () => {
     // Available months from actual sales data
     const availableMonths = Array.from(new Set(
         vendas.map(v => {
-            const d = parseDateHelper(v.data);
+            const d = parseDateHelper(v.dataPagamento || v.data);
             if (!d) return null;
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         }).filter(Boolean)
@@ -74,7 +74,7 @@ const Sales = () => {
 
         const matchesSearch = cText.includes(sText) || dText.includes(sText);
 
-        const d = parseDateHelper(v.data);
+        const d = parseDateHelper(v.dataPagamento || v.data);
         
         if (specificDate) {
             if (!d) return false;
