@@ -16,13 +16,13 @@ const CatalogViewerModal = ({ isOpen, onClose, brand, catalog, onFallbackRequest
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Catálogo Atual - ${brand}`}>
             <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between text-sm text-dark-muted px-2">
-                    <span className="font-semibold text-white">{catalog.ciclo || 'Ciclo Vigente'}</span>
+                <div className="flex items-center justify-between text-sm text-light-muted px-2">
+                    <span className="font-semibold text-light-text">{catalog.ciclo || 'Ciclo Vigente'}</span>
                     <span>Válido até: {catalog.dataFim ? new Date(catalog.dataFim + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</span>
                 </div>
 
                 {/* PDF Viewer Container */}
-                <div className="w-full bg-dark-bg border border-white/5 rounded-xl overflow-hidden shadow-inner relative" style={{ height: '55vh' }}>
+                <div className="w-full bg-light-bg border border-white/5 rounded-xl overflow-hidden shadow-inner relative" style={{ height: '55vh' }}>
                     {catalog.pdfUrl ? (
                         <iframe
                             src={`${catalog.pdfUrl}#toolbar=0&navpanes=0`}
@@ -31,15 +31,15 @@ const CatalogViewerModal = ({ isOpen, onClose, brand, catalog, onFallbackRequest
                             loading="lazy"
                         />
                     ) : (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-dark-muted">
-                            <WarningCircle size={48} className="text-brand-pink mb-4 opacity-70" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-light-muted">
+                            <WarningCircle size={48} className="text-brand-yellow mb-4 opacity-70" />
                             <p className="mb-2">Não foi possível carregar o PDF automaticamente.</p>
                             <p className="text-xs max-w-xs">A fonte oficial da marca pode ter restrições ou mudado de endereço temporariamente.</p>
 
                             <div className="mt-6 flex flex-col gap-3 w-full max-w-xs">
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-purple text-white rounded-lg hover:bg-brand-purple/90 transition-colors text-sm font-medium w-full"
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-lg hover:bg-brand-orange/90 transition-colors text-sm font-medium w-full"
                                 >
                                     <UploadSimple size={18} />
                                     Importar PDF Local
@@ -52,7 +52,7 @@ const CatalogViewerModal = ({ isOpen, onClose, brand, catalog, onFallbackRequest
                                     onChange={handleFileChange}
                                 />
 
-                                <div className="flex items-center gap-2 text-dark-muted my-1">
+                                <div className="flex items-center gap-2 text-light-muted my-1">
                                     <div className="h-px bg-white/10 flex-1"></div>
                                     <span className="text-xs uppercase tracking-wider">OU</span>
                                     <div className="h-px bg-white/10 flex-1"></div>
@@ -60,7 +60,7 @@ const CatalogViewerModal = ({ isOpen, onClose, brand, catalog, onFallbackRequest
 
                                 <button
                                     onClick={onFallbackRequest}
-                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-dark-surface border border-brand-purple/50 text-brand-purple rounded-lg hover:bg-brand-purple/10 transition-colors text-sm font-medium w-full"
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-light-surface border border-brand-orange/50 text-brand-orange rounded-lg hover:bg-brand-orange/10 transition-colors text-sm font-medium w-full"
                                 >
                                     <CloudArrowDown size={18} />
                                     Inserir Link Manual
@@ -70,7 +70,7 @@ const CatalogViewerModal = ({ isOpen, onClose, brand, catalog, onFallbackRequest
                     )}
                 </div>
 
-                <div className="text-[10px] text-center text-dark-muted opacity-50 px-4">
+                <div className="text-[10px] text-center text-light-muted opacity-50 px-4">
                     Visualização integrada de PDFs do motor Dona D&P Sync.
                 </div>
             </div>

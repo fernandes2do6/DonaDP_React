@@ -1,4 +1,5 @@
 {
+    "name": "dona-dp-react-bw8k",
     "rewrites": [
         {
             "source": "/api/(.*)",

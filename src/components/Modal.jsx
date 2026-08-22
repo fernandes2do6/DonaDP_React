@@ -14,11 +14,11 @@ const Modal = ({ isOpen, onClose, title, children }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
-            <div className="relative w-full max-w-lg bg-dark-surface border border-dark-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="relative w-full max-w-lg bg-light-surface border border-brand-brown/30 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center p-4 border-b border-white/5">
-                    <h3 className="text-lg font-semibold text-white">{title}</h3>
+                    <h3 className="text-lg font-semibold text-light-text">{title}</h3>
                     <button onClick={onClose} className="p-1 rounded-full hover:bg-white/10 transition-colors">
-                        <X size={20} className="text-dark-muted" />
+                        <X size={20} className="text-light-muted" />
                     </button>
                 </div>
 

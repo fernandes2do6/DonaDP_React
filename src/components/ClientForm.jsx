@@ -54,8 +54,8 @@ const ClientForm = ({ clientToEdit, onClose }) => {
         }
     };
 
-    const inputClass = "w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-colors text-sm";
-    const labelClass = "block text-xs text-dark-muted mb-1 font-medium";
+    const inputClass = "w-full bg-light-bg border border-brand-brown/30 rounded-lg px-3 py-2 text-light-text focus:outline-none focus:border-brand-orange transition-colors text-sm";
+    const labelClass = "block text-xs text-light-muted mb-1 font-medium";
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -73,8 +73,8 @@ const ClientForm = ({ clientToEdit, onClose }) => {
             </div>
 
             <div className="pt-4 flex gap-3">
-                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-dark-border text-dark-text hover:bg-dark-surface transition-colors" disabled={submitting}>Cancelar</button>
-                <button type="submit" className="flex-1 py-3 rounded-xl bg-brand-purple text-white font-semibold hover:bg-brand-purple/90 transition-colors shadow-lg shadow-brand-purple/20" disabled={submitting}>
+                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-brand-brown/30 text-dark-text hover:bg-light-surface transition-colors" disabled={submitting}>Cancelar</button>
+                <button type="submit" className="flex-1 py-3 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange/90 transition-colors shadow-lg shadow-brand-orange/20" disabled={submitting}>
                     {submitting ? 'Salvando...' : 'Salvar Cliente'}
                 </button>
             </div>

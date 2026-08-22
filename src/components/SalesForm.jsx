@@ -4,7 +4,7 @@ import { parseCurrency, formatCurrency, getLocalISODate } from '../utils/formatt
 import { addDoc, collection, setDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
-const DEFAULT_BRAND_PCT = { Natura: 30, Avon: 30, 'Boticário': 80, Eudora: 30 };
+const DEFAULT_BRAND_PCT = { Natura: 65, Avon: 30, 'Boticário': 80, Eudora: 30 };
 const loadBrandPcts = () => {
     try {
         const stored = localStorage.getItem('brandCostPct');
@@ -243,8 +243,8 @@ const SalesForm = ({ saleToEdit, onClose, defaultClient }) => {
         }
     };
 
-    const inputClass = "w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-purple transition-colors text-sm";
-    const labelClass = "block text-xs text-dark-muted mb-1 font-medium";
+    const inputClass = "w-full bg-light-bg border border-brand-brown/30 rounded-lg px-3 py-2 text-light-text focus:outline-none focus:border-brand-orange transition-colors text-sm";
+    const labelClass = "block text-xs text-light-muted mb-1 font-medium";
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -310,13 +310,13 @@ const SalesForm = ({ saleToEdit, onClose, defaultClient }) => {
                     <>
                         <div>
                             <label className={labelClass}>
-                                Custo (R$) {currentPct > 0 && <span className="text-brand-purple font-bold">({currentPct}%)</span>}
+                                Custo (R$) {currentPct > 0 && <span className="text-brand-orange font-bold">({currentPct}%)</span>}
                             </label>
                             <input
                                 type="text"
                                 value={formData.custo}
                                 readOnly
-                                className={`${inputClass} bg-dark-surface/50 text-dark-muted cursor-not-allowed`}
+                                className={`${inputClass} bg-light-surface/50 text-light-muted cursor-not-allowed`}
                             />
                         </div>
                         <div>
@@ -327,7 +327,7 @@ const SalesForm = ({ saleToEdit, onClose, defaultClient }) => {
                                 type="text"
                                 value={formData.total && formData.custo ? formatCurrency(parseCurrency(formData.total) - parseCurrency(formData.custo)) : formData.total ? formData.total : ''}
                                 readOnly
-                                className={`${inputClass} bg-dark-surface/50 ${formData.total && formData.custo && (parseCurrency(formData.total) - parseCurrency(formData.custo)) < 0 ? 'text-brand-pink' : 'text-brand-green'} cursor-not-allowed font-semibold`}
+                                className={`${inputClass} bg-light-surface/50 ${formData.total && formData.custo && (parseCurrency(formData.total) - parseCurrency(formData.custo)) < 0 ? 'text-brand-yellow' : 'text-brand-green'} cursor-not-allowed font-semibold`}
                             />
                         </div>
                     </>
@@ -436,8 +436,8 @@ const SalesForm = ({ saleToEdit, onClose, defaultClient }) => {
             )}
 
             <div className="pt-4 flex gap-3">
-                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-dark-border text-dark-text hover:bg-dark-surface transition-colors" disabled={submitting}>Cancelar</button>
-                <button type="submit" className="flex-1 py-3 rounded-xl bg-brand-purple text-white font-semibold hover:bg-brand-purple/90 transition-colors shadow-lg shadow-brand-purple/20" disabled={submitting}>
+                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-brand-brown/30 text-dark-text hover:bg-light-surface transition-colors" disabled={submitting}>Cancelar</button>
+                <button type="submit" className="flex-1 py-3 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange/90 transition-colors shadow-lg shadow-brand-orange/20" disabled={submitting}>
                     {submitting ? 'Salvando...' : 'Salvar Venda'}
                 </button>
             </div>

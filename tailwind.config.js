@@ -7,17 +7,18 @@ export default {
     theme: {
         extend: {
             colors: {
-                dark: {
-                    bg: '#0F172A',
-                    surface: '#1E293B',
-                    text: '#F8FAFC',
-                    muted: '#94A3B8',
-                    border: '#334155'
+                light: {
+                    bg: '#FAF9F6',
+                    surface: '#FFFFFF',
+                    text: '#43302B',
+                    muted: '#8C7A6B',
+                    border: '#E5E0D8'
                 },
                 brand: {
-                    purple: '#8B5CF6',
-                    green: '#10B981',
-                    pink: '#EC4899'
+                    orange: '#EA580C',
+                    yellow: '#EAB308',
+                    brown: '#78350F',
+                    green: '#10B981'
                 }
             },
             fontFamily: {

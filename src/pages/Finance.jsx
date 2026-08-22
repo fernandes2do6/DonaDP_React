@@ -119,23 +119,23 @@ const Finance = () => {
         }
     };
 
-    if (loading) return <div className="text-center text-brand-purple mt-10 animate-pulse">Carregando...</div>;
+    if (loading) return <div className="text-center text-brand-orange mt-10 animate-pulse">Carregando...</div>;
 
     return (
         <div className="pb-24 space-y-4">
             {/* Header / Filter */}
-            <div className="sticky top-0 z-40 bg-dark-bg/95 backdrop-blur-sm pt-2 pb-2 flex justify-between items-center">
+            <div className="sticky top-0 z-40 bg-light-bg/95 backdrop-blur-sm pt-2 pb-2 flex justify-between items-center">
                 <select
                     value={periodo}
                     onChange={(e) => setPeriodo(e.target.value)}
-                    className="bg-dark-surface border border-dark-border rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none"
+                    className="bg-light-surface border border-brand-brown/30 rounded-lg px-3 py-1.5 text-sm text-light-text focus:outline-none"
                 >
                     <option value="all">Todo o Período</option>
                     {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
 
                 <div className="flex gap-2">
-                    <button onClick={handleSync} className="p-2 rounded-xl bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20">
+                    <button onClick={handleSync} className="p-2 rounded-xl bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20">
                         <CloudArrowUp size={20} weight="bold" />
                     </button>
                 </div>
@@ -143,23 +143,23 @@ const Finance = () => {
 
             {/* Summary Cards (Horizontal Scroll) */}
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar snap-x">
-                <GlassCard className="min-w-[140px] shrink-0 snap-start bg-linear-to-br from-brand-purple/20 to-brand-purple/5 border-brand-purple/20">
-                    <p className="text-[10px] text-dark-muted mb-1">Saldo</p>
-                    <p className="text-lg font-bold text-white">{formatCurrency(saldo)}</p>
+                <GlassCard className="min-w-[140px] shrink-0 snap-start bg-linear-to-br from-brand-orange/20 to-brand-orange/5 border-brand-orange/20">
+                    <p className="text-[10px] text-light-muted mb-1">Saldo</p>
+                    <p className="text-lg font-bold text-light-text">{formatCurrency(saldo)}</p>
                 </GlassCard>
                 <GlassCard className="min-w-[140px] shrink-0 snap-start">
                     <div className="flex items-center gap-1 mb-1">
                         <ArrowUp size={12} className="text-brand-green" weight="bold" />
-                        <p className="text-[10px] text-dark-muted">Receitas</p>
+                        <p className="text-[10px] text-light-muted">Receitas</p>
                     </div>
                     <p className="text-lg font-bold text-brand-green">{formatCurrency(totalReceitas)}</p>
                 </GlassCard>
                 <GlassCard className="min-w-[140px] shrink-0 snap-start">
                     <div className="flex items-center gap-1 mb-1">
-                        <ArrowDown size={12} className="text-brand-pink" weight="bold" />
-                        <p className="text-[10px] text-dark-muted">Despesas</p>
+                        <ArrowDown size={12} className="text-brand-yellow" weight="bold" />
+                        <p className="text-[10px] text-light-muted">Despesas</p>
                     </div>
-                    <p className="text-lg font-bold text-brand-pink">{formatCurrency(totalDespesas)}</p>
+                    <p className="text-lg font-bold text-brand-yellow">{formatCurrency(totalDespesas)}</p>
                 </GlassCard>
             </div>
 
@@ -170,8 +170,8 @@ const Finance = () => {
                         key={type}
                         onClick={() => setTipoFilter(type)}
                         className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all border ${tipoFilter === type
-                            ? (type === 'Despesa' ? 'bg-brand-pink/20 border-brand-pink text-brand-pink' : 'bg-brand-green/20 border-brand-green text-brand-green')
-                            : 'bg-dark-surface border-dark-border text-dark-muted'
+                            ? (type === 'Despesa' ? 'bg-brand-yellow/20 border-brand-yellow text-brand-yellow' : 'bg-brand-green/20 border-brand-green text-brand-green')
+                            : 'bg-light-surface border-brand-brown/30 text-light-muted'
                             }`}
                     >
                         {type === 'all' ? 'Todos' : type}
@@ -189,12 +189,12 @@ const Finance = () => {
                         onClick={() => handleToggleStatus(item)}
                     >
                         <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-full ${item.tipo === 'Receita' ? 'bg-brand-green/10 text-brand-green' : 'bg-brand-pink/10 text-brand-pink'}`}>
+                            <div className={`p-2 rounded-full ${item.tipo === 'Receita' ? 'bg-brand-green/10 text-brand-green' : 'bg-brand-yellow/10 text-brand-yellow'}`}>
                                 {item.tipo === 'Receita' ? <ArrowUp size={16} weight="bold" /> : <ArrowDown size={16} weight="bold" />}
                             </div>
                             <div>
                                 <h3 className="font-semibold text-sm text-dark-text max-w-[150px] truncate">{item.descricao || item.ref}</h3>
-                                <div className="text-[10px] text-dark-muted flex gap-2">
+                                <div className="text-[10px] text-light-muted flex gap-2">
                                     <span>{formatCurrency(item.valor)}</span>
                                     <span>•</span>
                                     <span>{item.vencimento}</span>
@@ -203,14 +203,14 @@ const Finance = () => {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <div className={`text-xs font-bold ${item.tipo === 'Receita' ? 'text-brand-green' : 'text-brand-pink'}`}>
+                            <div className={`text-xs font-bold ${item.tipo === 'Receita' ? 'text-brand-green' : 'text-brand-yellow'}`}>
                                 {item.tipo === 'Receita' ? '+' : '-'}{formatCurrency(item.valor)}
                             </div>
                         </div>
                     </GlassCard>
                 ))}
                 {filteredItems.length === 0 && (
-                    <div className="text-center py-10 text-dark-muted">
+                    <div className="text-center py-10 text-light-muted">
                         Nenhum registro no período.
                     </div>
                 )}

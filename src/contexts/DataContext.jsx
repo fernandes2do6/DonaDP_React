@@ -13,6 +13,7 @@ export const DataProvider = ({ children }) => {
     const [vendas, setVendas] = useState([]);
     const [financeiro, setFinanceiro] = useState([]);
     const [pgos, setPgos] = useState([]); // NEW: Payment Groups
+    const [saldos, setSaldos] = useState([]); // NEW: Saldos/Recebimentos Avulsos
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -34,6 +35,10 @@ export const DataProvider = ({ children }) => {
         const unsubPgos = onSnapshot(query(collection(db, "pgos"), orderBy("timestamp", "desc")), (snapshot) => {
             setPgos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
+        
+        const unsubSaldos = onSnapshot(query(collection(db, "saldos_recebidos"), orderBy("timestamp", "desc")), (snapshot) => {
+            setSaldos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
 
         const unsubFinanceiro = onSnapshot(query(collection(db, "financeiro"), orderBy("timestamp", "desc")), (snapshot) => {
             setFinanceiro(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -47,6 +52,7 @@ export const DataProvider = ({ children }) => {
             unsubVendas();
             unsubFinanceiro();
             unsubPgos();
+            unsubSaldos();
         };
     }, []);
 
@@ -56,6 +62,7 @@ export const DataProvider = ({ children }) => {
         vendas,
         financeiro,
         pgos, // NEW
+        saldos,
         loading
     };
 

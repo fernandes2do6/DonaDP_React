@@ -4,10 +4,10 @@ import { Pie } from 'react-chartjs-2';
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const brandColors = {
-    'Natura': '#8B5CF6',
-    'Avon': '#10B981',
-    'Boticário': '#EC4899',
-    'Eudora': '#F59E0B'
+    'Natura': '#EA580C',    // Orange
+    'Avon': '#EAB308',      // Yellow
+    'Boticário': '#78350F', // Brown
+    'Eudora': '#D97706'     // Amber
 };
 
 const BrandPieChart = ({ data, onBrandClick, selectedBrands = [] }) => {
@@ -51,22 +51,22 @@ const BrandPieChart = ({ data, onBrandClick, selectedBrands = [] }) => {
                             key={brand}
                             onClick={() => onBrandClick && onBrandClick(brand)}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left ${isSelected
-                                    ? 'bg-white/10 ring-1 ring-white/20 scale-105'
+                                    ? 'bg-brand-orange/10 ring-1 ring-brand-orange/30 scale-105'
                                     : hasSelection
                                         ? 'opacity-40 hover:opacity-70'
-                                        : 'hover:bg-white/5'
+                                        : 'hover:bg-brand-orange/5'
                                 }`}
                         >
                             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: brandColors[brand] }} />
-                            <span className="text-dark-text">{brand}</span>
-                            <span className="text-dark-muted ml-auto">({counts[brand]})</span>
+                            <span className="text-light-text">{brand}</span>
+                            <span className="text-light-muted ml-auto">({counts[brand]})</span>
                         </button>
                     );
                 })}
                 {hasSelection && (
                     <button
                         onClick={() => onBrandClick && onBrandClick(null)}
-                        className="text-[10px] text-brand-purple hover:text-white transition-colors text-center mt-1"
+                        className="text-[10px] text-brand-orange hover:text-light-text transition-colors text-center mt-1"
                     >
                         Limpar filtro
                     </button>
