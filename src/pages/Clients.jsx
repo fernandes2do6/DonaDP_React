@@ -156,15 +156,7 @@ const Clients = () => {
                 )}
             </div>
 
-            {/* FAB */}
-            <button
-                onClick={openNew}
-                className="fixed bottom-24 right-4 w-14 h-14 bg-brand-orange text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-orange/40 hover:scale-105 active:scale-95 transition-all z-40"
-            >
-                <Plus size={24} weight="bold" />
-            </button>
-
-            {/* Modal */}
+            {/* Modal de Edição de Cliente */}
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingClient ? "Editar Cliente" : "Novo Cliente"}>
                 <ClientForm clientToEdit={editingClient} onClose={() => setIsModalOpen(false)} />
             </Modal>

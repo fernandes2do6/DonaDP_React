@@ -619,15 +619,7 @@ const Sales = () => {
                 )}
             </div>
 
-            {/* FAB */}
-            <button
-                onClick={openNewSale}
-                className="fixed bottom-24 right-4 w-14 h-14 bg-brand-orange text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-orange/40 hover:scale-105 active:scale-95 transition-all z-40"
-            >
-                <Plus size={24} weight="bold" />
-            </button>
-
-            {/* Modal */}
+            {/* Modal de Edição de Venda */}
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingSale ? "Editar Venda" : "Nova Venda"}>
                 <SalesForm
                     saleToEdit={editingSale}
