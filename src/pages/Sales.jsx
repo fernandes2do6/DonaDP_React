@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
-import { parseCurrency, formatCurrency, formatDateForDisplay } from '../utils/formatters';
+import { parseCurrency, formatCurrency, formatDateForDisplay, generateBillingMessage } from '../utils/formatters';
 import { Plus, MagnifyingGlass, Trash, PencilSimple, WhatsappLogo, Funnel, X, CheckCircle, ListChecks, CaretDown, CaretUp } from 'phosphor-react';
 import Modal from '../components/Modal';
 import SalesForm from '../components/SalesForm';
@@ -555,17 +555,35 @@ const Sales = () => {
                                     )}
                                     <button
                                         onClick={() => openEditSale(sale)}
-                                        className="p-2 rounded-full bg-light-surface hover:bg-white/10 text-brand-orange transition-colors">
+                                        className="p-2 rounded-full bg-light-surface hover:bg-white/10 text-brand-orange transition-colors cursor-pointer"
+                                        title="Editar Venda"
+                                    >
                                         <PencilSimple size={18} />
                                     </button>
                                     <button
-                                        onClick={() => window.open(`https://wa.me/?text=Olá ${sale.cliente}, referente a sua compra...`, '_blank')}
-                                        className="p-2 rounded-full bg-light-surface hover:bg-white/10 text-brand-green transition-colors">
+                                        onClick={() => {
+                                            const clientObj = (clientes || []).find(c => c.nome && sale.cliente && c.nome.toLowerCase() === sale.cliente.toLowerCase());
+                                            const phone = clientObj ? (clientObj.whatsapp || clientObj.telefone || '').replace(/\D/g, '') : '';
+                                            const msgText = generateBillingMessage({
+                                                cliente: sale.cliente,
+                                                total: sale.total,
+                                                produtoDesc: sale.produtoDesc,
+                                                marca: sale.marca
+                                            });
+                                            const msg = encodeURIComponent(msgText);
+                                            const url = phone ? `https://wa.me/55${phone}?text=${msg}` : `https://wa.me/?text=${msg}`;
+                                            window.open(url, '_blank');
+                                        }}
+                                        className="p-2 rounded-full bg-light-surface hover:bg-white/10 text-brand-green transition-colors cursor-pointer"
+                                        title="Cobrar via WhatsApp"
+                                    >
                                         <WhatsappLogo size={18} />
                                     </button>
                                     <button
                                         onClick={(e) => handleDelete(sale.id, e)}
-                                        className="p-2 rounded-full bg-light-surface hover:bg-white/10 text-brand-yellow transition-colors">
+                                        className="p-2 rounded-full bg-light-surface hover:bg-white/10 text-brand-yellow transition-colors cursor-pointer"
+                                        title="Apagar Venda"
+                                    >
                                         <Trash size={18} />
                                     </button>
                                 </div>

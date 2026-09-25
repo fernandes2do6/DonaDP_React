@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../contexts/DataContext';
-import { parseCurrency, formatCurrency, getLocalISODate } from '../utils/formatters';
+import { parseCurrency, formatCurrency, getLocalISODate, generateBillingMessage } from '../utils/formatters';
 import { CloudArrowUp, TrendUp, TrendDown, Wallet, CoinVertical, WhatsappLogo } from 'phosphor-react';
 import BrandPieChart from '../components/BrandPieChart';
 import GlassCard from '../components/GlassCard';
@@ -37,13 +37,19 @@ const PaymentCard = ({ payment, indicatorColor = "bg-brand-orange", onViewClient
                     onClick={() => {
                         if (payment.whatsapp) {
                             const phone = payment.whatsapp.replace(/\D/g, '');
-                            const msg = encodeURIComponent(`Olá ${payment.cliente}! 😊\nGostaria de lembrar sobre o pagamento pendente de *${formatCurrency(payment.total)}* referente a: ${payment.produtoDesc || 'sua compra'}.\nChave Pix para pagamento: patriciasantos690@gmail.com\nAguardo retorno, obrigada! 💜`);
+                            const msgText = generateBillingMessage({
+                                cliente: payment.cliente,
+                                total: payment.total,
+                                produtoDesc: payment.produtoDesc,
+                                marca: payment.marca
+                            });
+                            const msg = encodeURIComponent(msgText);
                             window.open(`https://wa.me/55${phone}?text=${msg}`, '_blank');
                         } else {
                             alert(`O cliente "${payment.cliente}" não possui WhatsApp cadastrado.\nCadastre na aba Clientes.`);
                         }
                     }}
-                    className={`p-2.5 rounded-xl active:scale-90 transition-all border ${payment.whatsapp
+                    className={`p-2.5 rounded-xl active:scale-90 transition-all border cursor-pointer ${payment.whatsapp
                         ? 'bg-brand-green/10 text-brand-green hover:bg-brand-green/20 border-brand-green/20'
                         : 'bg-light-surface text-light-muted border-brand-brown/30 hover:text-brand-green hover:border-brand-green/20'
                         }`}
