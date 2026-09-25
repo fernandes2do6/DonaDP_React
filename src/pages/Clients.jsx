@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import ClientDetail from '../components/ClientDetail';
 import { useData } from '../contexts/DataContext';
-import { Plus, MagnifyingGlass, PencilSimple, Trash, WhatsappLogo, Eye } from 'phosphor-react';
+import { Plus, MagnifyingGlass, PencilSimple, Trash, WhatsappLogo, Eye, SortAscending, Clock } from 'phosphor-react';
 import Modal from '../components/Modal';
 import ClientForm from '../components/ClientForm';
 import { doc, deleteDoc, writeBatch } from 'firebase/firestore';
@@ -11,6 +11,7 @@ import GlassCard from '../components/GlassCard';
 const Clients = () => {
     const { clientes, loading } = useData();
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortBy, setSortBy] = useState('alphabetical'); // 'alphabetical' | 'created'
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState(null);
     const [selectedClients, setSelectedClients] = useState(new Set());
@@ -20,6 +21,20 @@ const Clients = () => {
     const filteredClients = safeClients.filter(c =>
         c.nome && c.nome.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const sortedClients = [...filteredClients].sort((a, b) => {
+        if (sortBy === 'alphabetical') {
+            const nameA = (a.nome || '').trim();
+            const nameB = (b.nome || '').trim();
+            return nameA.localeCompare(nameB, 'pt-BR', { sensitivity: 'base' });
+        }
+        if (sortBy === 'created') {
+            const timeA = a.timestamp || 0;
+            const timeB = b.timestamp || 0;
+            return timeB - timeA;
+        }
+        return 0;
+    });
 
     const openNew = () => { setEditingClient(null); setIsModalOpen(true); };
     const openEdit = (client, e) => { e.stopPropagation(); setEditingClient(client); setIsModalOpen(true); };
@@ -60,8 +75,8 @@ const Clients = () => {
 
     return (
         <div className="pb-24 space-y-4">
-            {/* Header / Search */}
-            <div className="sticky top-0 z-40 bg-light-bg/95 backdrop-blur-sm pt-2 pb-2">
+            {/* Header / Search + Sorting Filters */}
+            <div className="sticky top-0 z-40 bg-light-bg/95 backdrop-blur-sm pt-2 pb-2 space-y-2.5">
                 <div className="flex items-center gap-2">
                     <div className="relative flex-1">
                         <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-light-muted" size={18} />
@@ -76,17 +91,50 @@ const Clients = () => {
                     <button
                         onClick={handleDeleteSelected}
                         disabled={selectedClients.size === 0}
-                        className={`p-2 rounded-xl transition-all ${selectedClients.size > 0 ? 'bg-brand-yellow text-light-text' : 'bg-light-surface text-light-muted'}`}
+                        className={`p-2 rounded-xl transition-all ${selectedClients.size > 0 ? 'bg-brand-yellow text-light-text cursor-pointer' : 'bg-light-surface text-light-muted opacity-40 cursor-not-allowed'}`}
+                        title="Apagar clientes selecionados"
                     >
                         <Trash size={20} weight="bold" />
                     </button>
                 </div>
-                <div className="mt-2 text-xs text-light-muted px-1">{filteredClients.length} cliente(s)</div>
+
+                {/* Filtros de Ordenação: Ordem Alfabética e Ordem de Cadastro */}
+                <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setSortBy('alphabetical')}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border flex items-center gap-1.5 cursor-pointer ${
+                                sortBy === 'alphabetical'
+                                    ? 'bg-brand-orange/20 border-brand-orange text-brand-orange shadow-[0_0_10px_rgba(234,88,12,0.2)]'
+                                    : 'bg-light-surface border-brand-brown/30 text-light-muted hover:border-brand-brown/40'
+                            }`}
+                        >
+                            <SortAscending size={15} weight={sortBy === 'alphabetical' ? 'bold' : 'regular'} />
+                            Ordem Alfabética
+                        </button>
+
+                        <button
+                            onClick={() => setSortBy('created')}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border flex items-center gap-1.5 cursor-pointer ${
+                                sortBy === 'created'
+                                    ? 'bg-brand-orange/20 border-brand-orange text-brand-orange shadow-[0_0_10px_rgba(234,88,12,0.2)]'
+                                    : 'bg-light-surface border-brand-brown/30 text-light-muted hover:border-brand-brown/40'
+                            }`}
+                        >
+                            <Clock size={15} weight={sortBy === 'created' ? 'bold' : 'regular'} />
+                            Ordem de Cadastro
+                        </button>
+                    </div>
+
+                    <span className="text-xs text-light-muted whitespace-nowrap px-1">
+                        {sortedClients.length} cliente(s)
+                    </span>
+                </div>
             </div>
 
             {/* Lista de Clientes */}
             <div className="space-y-2">
-                {filteredClients.map(client => {
+                {sortedClients.map(client => {
                     const isSelected = selectedClients.has(client.id);
                     const phone = client.whatsapp || client.telefone || '';
                     return (
